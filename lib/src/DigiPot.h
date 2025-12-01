@@ -1,10 +1,11 @@
 #pragma once
 
 #include "DigitalWritePin.h"
+#include <cstdint>
 
 class DigiPot {
 public:
-    static constexpr int NUM_STEPS = 100;
+    static constexpr int32_t NUM_STEPS = 100;
 
     DigiPot(const DigitalWritePin& inc, const DigitalWritePin& ud, const DigitalWritePin& cs);
 
@@ -12,10 +13,10 @@ public:
     float getLevel() const;
 
 private:
-    void pulse(bool up, int count);
+    void pulse(bool up, int32_t count);
 
     const DigitalWritePin& inc_;
     const DigitalWritePin& ud_;
     const DigitalWritePin& cs_;
-    int current_step_;
+    int32_t current_step_;
 };

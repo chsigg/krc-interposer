@@ -33,7 +33,7 @@ public:
     NRF_PWM0->SHORTS = PWM_SHORTS_LOOPSDONE_SEQSTART0_Msk;
 
     // Normal and inverted polarity for channel 0 and 1
-    uint16_t seq_[4] = {(TOP / 2) | 0x0000, (TOP / 2) | 0x8000, 0, 0};
+    uint16_t seq_[4] = {TOP / 2 | 0x0000, TOP / 2 | 0x8000, 0, 0};
 
     NRF_PWM0->SEQ[0].PTR = (uint32_t)seq_;
     NRF_PWM0->SEQ[0].CNT = 4;

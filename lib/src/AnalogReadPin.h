@@ -1,8 +1,10 @@
 #pragma once
 
+#include <cstdint>
+
 class AnalogReadPin {
 public:
     virtual ~AnalogReadPin() = default;
 
-    virtual int read() const = 0;
+    virtual int32_t read() const = 0;
 };

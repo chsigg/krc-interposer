@@ -17,8 +17,8 @@ void StoveDial::update() {
   std::rotate(begin, begin+1, end);
   last_readings_.back() = pin_.read();
 
-  int sum = std::accumulate(begin, end, 0);
-  int reading = sum / last_readings_.size();
+  int32_t sum = std::accumulate(begin, end, int32_t(0));
+  int32_t reading = sum / last_readings_.size();
 
   current_level_ = std::min(static_cast<float>(reading) / config_.max, 1.0f);
 
@@ -46,4 +46,4 @@ void StoveDial::update() {
 
 float StoveDial::getLevel() const { return current_level_; }
 
-int StoveDial::getBoostLevel() const { return current_boost_; }
+int32_t StoveDial::getBoostLevel() const { return current_boost_; }

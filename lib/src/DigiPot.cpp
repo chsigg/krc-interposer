@@ -11,7 +11,7 @@ DigiPot::DigiPot(const DigitalWritePin &inc, const DigitalWritePin &ud,
 }
 
 void DigiPot::setLevel(float level) {
-  int step = std::nearbyint(std::clamp(level, 0.0f, 1.0f) * (NUM_STEPS - 1));
+  int32_t step = std::nearbyint(std::clamp(level, 0.0f, 1.0f) * (NUM_STEPS - 1));
 
   if (step == current_step_) {
     return;
@@ -23,11 +23,11 @@ void DigiPot::setLevel(float level) {
 
 float DigiPot::getLevel() const { return current_step_ / (NUM_STEPS - 1.0f); }
 
-void DigiPot::pulse(bool up, int count) {
+void DigiPot::pulse(bool up, int32_t count) {
   ud_.set(up ? PinState::High : PinState::Low);
   inc_.set(PinState::High);
   cs_.set(PinState::Low); // Select
-  for (int i = 0; i < count; ++i) {
+  for (int32_t i = 0; i < count; ++i) {
     inc_.set(PinState::Low);
     // Note: Delays might be needed here depending on MCU speed (min 1us)
     inc_.set(PinState::High);

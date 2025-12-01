@@ -1,17 +1,18 @@
 #pragma once
 
 #include "Buzzer.h"
+#include <cstdint>
 
 class Beeper {
 public:
   explicit Beeper(Buzzer &buzzer);
 
-  void beep(int duration_ms);
+  void beep(int32_t duration_ms);
 
   void update();
 
 private:
   Buzzer &buzzer_;
 
-  unsigned long end_time_ms_ = 0;
+  uint32_t end_time_ms_ = 0;
 };

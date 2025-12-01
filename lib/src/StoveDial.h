@@ -5,10 +5,10 @@
 #include <cstdint>
 
 struct StoveDialConfig {
-    int min;
-    int max;
-    int boost;
-    int num_boosts;
+    int32_t min;
+    int32_t max;
+    int32_t boost;
+    int32_t num_boosts;
 };
 
 class StoveDial {
@@ -18,15 +18,15 @@ public:
     void update();
 
     float getLevel() const;
-    int getBoostLevel() const;
+    int32_t getBoostLevel() const;
 
 private:
     const AnalogReadPin& pin_;
     const StoveDialConfig config_;
 
-    int current_boost_ = 0;
+    int32_t current_boost_ = 0;
     float current_level_ = 0.0f;
 
-    std::array<int, 4> last_readings_ = {};
+    std::array<int32_t, 4> last_readings_ = {};
     bool boost_armed_ = true;
 };

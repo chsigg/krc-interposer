@@ -1,11 +1,11 @@
 #include "Beeper.h"
 #include <algorithm>
 
-extern "C" unsigned long millis();
+extern "C" uint32_t millis();
 
 Beeper::Beeper(Buzzer &buzzer) : buzzer_(buzzer) {}
 
-void Beeper::beep(int duration_ms) {
+void Beeper::beep(int32_t duration_ms) {
   if (duration_ms <= 0) {
     return;
   }

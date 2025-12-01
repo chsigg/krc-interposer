@@ -6,8 +6,8 @@
 using namespace fakeit;
 
 // Mock millis for testing
-static unsigned long current_millis = 0;
-extern "C" unsigned long millis() { return current_millis; }
+static uint32_t current_millis = 0;
+extern "C" uint32_t millis() { return current_millis; }
 
 TEST_CASE("Beeper Logic") {
     Mock<Buzzer> buzzer_mock;
