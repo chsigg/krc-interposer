@@ -4,7 +4,7 @@
 #include <cmath>
 #include <numeric>
 
-StoveDial::StoveDial(AnalogReadPin &pin, const StoveDialConfig &config)
+StoveDial::StoveDial(const AnalogReadPin &pin, const StoveDialConfig &config)
     : pin_(pin), config_(config) {
   assert(config_.min < config_.max);
   assert(config_.max < config_.boost);

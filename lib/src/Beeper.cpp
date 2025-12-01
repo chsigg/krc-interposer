@@ -1,0 +1,23 @@
+#include "Beeper.h"
+#include <algorithm>
+
+extern "C" unsigned long millis();
+
+Beeper::Beeper(Buzzer &buzzer) : buzzer_(buzzer) {}
+
+void Beeper::beep(int duration_ms) {
+  if (duration_ms <= 0) {
+    return;
+  }
+  end_time_ms_ = std::max(end_time_ms_, millis() + duration_ms);
+  buzzer_.enable();
+}
+
+void Beeper::update() {
+  if (end_time_ms_ <= 0 || millis() < end_time_ms_) {
+    return;
+  }
+
+  buzzer_.disable();
+  end_time_ms_ = 0;
+}

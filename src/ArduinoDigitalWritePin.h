@@ -9,10 +9,10 @@ public:
         pinMode(pin_, OUTPUT);
     }
 
-    void set(PinState state) override {
+    void set(PinState state) const override {
         digitalWrite(pin_, state == PinState::High ? HIGH : LOW);
     }
 
 private:
-    int pin_;
+    const int pin_;
 };

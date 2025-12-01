@@ -6,7 +6,7 @@ class DigiPot {
 public:
     static constexpr int NUM_STEPS = 100;
 
-    DigiPot(DigitalWritePin& inc, DigitalWritePin& ud, DigitalWritePin& cs);
+    DigiPot(const DigitalWritePin& inc, const DigitalWritePin& ud, const DigitalWritePin& cs);
 
     void setLevel(float level);
     float getLevel() const;
@@ -14,8 +14,8 @@ public:
 private:
     void pulse(bool up, int count);
 
-    DigitalWritePin& inc_;
-    DigitalWritePin& ud_;
-    DigitalWritePin& cs_;
+    const DigitalWritePin& inc_;
+    const DigitalWritePin& ud_;
+    const DigitalWritePin& cs_;
     int current_step_;
 };

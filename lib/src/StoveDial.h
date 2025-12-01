@@ -13,7 +13,7 @@ struct StoveDialConfig {
 
 class StoveDial {
 public:
-    StoveDial(AnalogReadPin& pin, const StoveDialConfig& config);
+    StoveDial(const AnalogReadPin& pin, const StoveDialConfig& config);
 
     void update();
 
@@ -21,8 +21,8 @@ public:
     int getBoostLevel() const;
 
 private:
-    AnalogReadPin& pin_;
-    StoveDialConfig config_;
+    const AnalogReadPin& pin_;
+    const StoveDialConfig config_;
 
     int current_boost_ = 0;
     float current_level_ = 0.0f;

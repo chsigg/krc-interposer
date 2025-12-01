@@ -4,5 +4,5 @@ class AnalogReadPin {
 public:
     virtual ~AnalogReadPin() = default;
 
-    virtual int read() = 0;
+    virtual int read() const = 0;
 };

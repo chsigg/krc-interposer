@@ -2,7 +2,8 @@
 #include <algorithm>
 #include <cmath>
 
-DigiPot::DigiPot(DigitalWritePin &inc, DigitalWritePin &ud, DigitalWritePin &cs)
+DigiPot::DigiPot(const DigitalWritePin &inc, const DigitalWritePin &ud,
+                 const DigitalWritePin &cs)
     : inc_(inc), ud_(ud), cs_(cs), current_step_(0) {
   inc_.set(PinState::High);
   pulse(false, NUM_STEPS);

@@ -9,10 +9,10 @@ public:
         pinMode(pin_, INPUT);
     }
 
-    int read() override {
+    int read() const override {
         return analogRead(pin_);
     }
 
 private:
-    int pin_;
+    const int pin_;
 };
