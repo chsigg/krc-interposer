@@ -10,7 +10,7 @@ void Beeper::beep(int32_t duration_ms) {
     return;
   }
   end_time_ms_ = std::max(end_time_ms_, millis() + duration_ms);
-  buzzer_.enable();
+  buzzer_.enable(4000);
 }
 
 void Beeper::update() {
