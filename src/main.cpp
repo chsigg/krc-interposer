@@ -22,5 +22,6 @@ void setup() {
 void loop() {
     dial.update();
     beeper.update();
-    pot.setLevel(dial.getLevel());
+    auto level = dial.getLevel();
+    pot.setLevel(0);
 }

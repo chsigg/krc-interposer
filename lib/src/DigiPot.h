@@ -9,7 +9,7 @@ public:
 
     DigiPot(const DigitalWritePin& inc, const DigitalWritePin& ud, const DigitalWritePin& cs);
 
-    void setLevel(float level);
+    virtual void setLevel(float level);
     float getLevel() const;
 
 private:

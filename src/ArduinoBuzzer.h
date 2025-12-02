@@ -16,9 +16,9 @@ public:
   }
 
   void enable(int32_t frequency_hz) override {
-    uint16_t top = 16000000 / frequency_hz;
+    int16_t period = 16000000 / 2 / frequency_hz;
     // Normal and inverted polarity for channel 0 and 1
-    uint16_t sequence[4] = {top / 2 | 0x0000, top / 2 | 0x8000, 0, 0};
+    int16_t sequence[4] = {period, (int16_t)-period, 0, 0};
 
     NRF_PWM0->PSEL.OUT[0] = g_ADigitalPinMap[pin_p_];
     NRF_PWM0->PSEL.OUT[1] = g_ADigitalPinMap[pin_n_];
@@ -26,7 +26,7 @@ public:
     // Configure PWM0 for differential drive
     NRF_PWM0->MODE = PWM_MODE_UPDOWN_Up;
     NRF_PWM0->PRESCALER = PWM_PRESCALER_PRESCALER_DIV_1; // 16MHz
-    NRF_PWM0->COUNTERTOP = top;
+    NRF_PWM0->COUNTERTOP = period * 2;
     NRF_PWM0->LOOP = 0;
     NRF_PWM0->DECODER = (PWM_DECODER_LOAD_Individual << PWM_DECODER_LOAD_Pos) |
                         (PWM_DECODER_MODE_RefreshCount << PWM_DECODER_MODE_Pos);
