@@ -16,13 +16,13 @@ public:
 
   void update();
 
-  void setTargetTemp(float temp) { target_temp_ = temp; }
-  float getLevel() const { return level_; }
+  virtual void setTargetTemp(float temp) { target_temp_ = temp; }
+  virtual float getLevel() const { return level_; }
   bool isLidOpen() const { return lid_open_; }
 
 private:
   const TrendAnalyzer &analyzer_;
-  const ThermalConfig &config_;
+  const ThermalConfig config_;
   float target_temp_;
   float level_ = 0.0f;
   bool lid_open_ = false;

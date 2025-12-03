@@ -11,7 +11,7 @@ TEST_CASE("StoveActuator Logic") {
   Fake(Method(ArduinoFake(), delayMicroseconds));
   Mock<DigiPot> pot_mock;
 
-  StoveLevelConfig config{.min = 0.1f, .max = 0.8f, .boost = 0.9f, .num_boosts = 2};
+  LevelConfig config{.min = 0.1f, .max = 0.8f, .boost = 0.9f, .num_boosts = 2};
 
   StoveActuator actuator(pot_mock.get(), config);
 

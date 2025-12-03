@@ -1,7 +1,7 @@
 #include "StoveActuator.h"
 #include <algorithm>
 
-StoveActuator::StoveActuator(DigiPot &pot, const StoveLevelConfig &config)
+StoveActuator::StoveActuator(DigiPot &pot, const LevelConfig &config)
     : pot_(pot), config_(config) {}
 
 void StoveActuator::setLevel(const StoveLevel &level) { target_level_ = level; }

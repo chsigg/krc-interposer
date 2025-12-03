@@ -6,16 +6,16 @@
 
 class StoveActuator {
 public:
-    StoveActuator(DigiPot& pot, const StoveLevelConfig& config);
+    StoveActuator(DigiPot& pot, const LevelConfig& config);
 
-    void setLevel(const StoveLevel& level);
+    virtual void setLevel(const StoveLevel& level);
 
     void update();
 
 private:
     DigiPot& pot_;
-    const StoveLevelConfig& config_;
+    const LevelConfig config_;
 
     StoveLevel target_level_ = {};
-    int32_t current_boost_ = 0;
+    uint32_t current_boost_ = 0;
 };

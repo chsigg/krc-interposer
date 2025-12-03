@@ -13,7 +13,7 @@ DigiPot::DigiPot(const DigitalWritePin &inc, const DigitalWritePin &ud,
 }
 
 void DigiPot::setLevel(float level) {
-  int32_t step = std::nearbyint(std::clamp(level, 0.0f, 1.0f) * (NUM_STEPS - 1));
+  int32_t step = std::lround(std::clamp(level, 0.0f, 1.0f) * (NUM_STEPS - 1));
 
   if (step == current_step_) {
     return;

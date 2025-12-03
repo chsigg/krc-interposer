@@ -7,7 +7,7 @@ using namespace fakeit;
 
 TEST_CASE("StoveDial Logic") {
   Mock<AnalogReadPin> pin_mock;
-  StoveLevelConfig config{.min = 0.1f, .max = 0.8f, .boost = 0.9f, .num_boosts = 2};
+  LevelConfig config{.min = 0.1f, .max = 0.8f, .boost = 0.9f, .num_boosts = 2};
   StoveDial dial(pin_mock.get(), config);
 
   // Helper to stabilize the moving average (size 4)

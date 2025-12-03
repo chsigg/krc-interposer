@@ -7,7 +7,7 @@ class Beeper {
 public:
   explicit Beeper(Buzzer &buzzer);
 
-  void beep(uint32_t duration_ms);
+  virtual void beep(uint32_t duration_ms);
 
   void update();
 

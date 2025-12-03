@@ -7,15 +7,15 @@
 
 class StoveDial {
 public:
-  StoveDial(const AnalogReadPin &pin, const StoveLevelConfig &config);
+  StoveDial(const AnalogReadPin &pin, const LevelConfig &config);
 
   void update();
 
-  StoveLevel getLevel() const;
+  virtual StoveLevel getLevel() const;
 
 private:
   const AnalogReadPin &pin_;
-  const StoveLevelConfig config_;
+  const LevelConfig config_;
 
   StoveLevel level_ = {};
 

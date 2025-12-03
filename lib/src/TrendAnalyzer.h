@@ -18,6 +18,10 @@ public:
 
   float getSlope() const { return slope_; }
 
+  virtual uint32_t getLastUpdateMs() const {
+    return count_ > 0 ? history_[count_ - 1].time : 0;
+  }
+
 private:
   void calculateRegression();
 

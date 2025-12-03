@@ -7,7 +7,7 @@ extern "C" uint32_t millis();
 Beeper::Beeper(Buzzer &buzzer) : buzzer_(buzzer) {}
 
 void Beeper::beep(uint32_t duration_ms) {
-  if (duration_ms <= 0) {
+  if (duration_ms == 0) {
     return;
   }
   end_time_ms_ = std::max(end_time_ms_, millis() + duration_ms);
