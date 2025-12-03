@@ -4,10 +4,10 @@
 
 // Maps analog pin reading to stove level
 struct StoveLevelConfig {
-  int32_t min;   // level min/max, level 0.0 below
-  int32_t max;   // boost 0 below, level 1.0 at and above
-  int32_t boost; // increments boost above
-  int32_t num_boosts;
+  float min = 0.1f;   // level min/max, level 0.0 below
+  float max = 0.8f;   // boost 0 below, level 1.0 at and above
+  float boost = 0.9f; // increments boost above
+  int32_t num_boosts = 2;
 };
 
 struct StoveLevel {

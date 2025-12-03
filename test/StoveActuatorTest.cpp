@@ -11,11 +11,7 @@ TEST_CASE("StoveActuator Logic") {
   Fake(Method(ArduinoFake(), delayMicroseconds));
   Mock<DigiPot> pot_mock;
 
-  // Config: max=100, boost=150.
-  // Note: StoveActuator logic compares pot.getLevel() (float 0..1) with
-  // config.boost (int 150). This usually means the 'if' branch is always taken
-  // unless getLevel() > 150.
-  StoveLevelConfig config{.min = 10, .max = 100, .boost = 150, .num_boosts = 2};
+  StoveLevelConfig config{.min = 0.1f, .max = 0.8f, .boost = 0.9f, .num_boosts = 2};
 
   StoveActuator actuator(pot_mock.get(), config);
 
@@ -40,7 +36,7 @@ TEST_CASE("StoveActuator Logic") {
     Fake(Method(pot_mock, setLevel));
 
     // First update: current_boost (0) < target (2).
-    // pot level (0.5) <= config.boost (150).
+    // pot level (0.5) <= config.boost (0.9).
     // Should set pot to 1.0 and increment current_boost to 1.
     actuator.update();
     Verify(Method(pot_mock, setLevel).Using(1.0f)).Exactly(1);
@@ -73,8 +69,8 @@ TEST_CASE("StoveActuator Logic") {
     actuator.update();
 
     // Logic: below_max_level = config.max - (config.boost - config.max) / 2
-    // below_max_level = 100 - (150 - 100)/2 = 75.
-    // pot.setLevel(min(75, 0.5)) -> 0.5.
+    // below_max_level = 0.8 - (0.9 - 0.8)/2 = 0.75.
+    // pot.setLevel(min(0.75, 0.5)) -> 0.5.
     Verify(Method(pot_mock, setLevel).Using(0.5f)).Exactly(1);
   }
 
@@ -82,15 +78,15 @@ TEST_CASE("StoveActuator Logic") {
     StoveLevel level{.base = 0.5f, .boost = 1};
     actuator.setLevel(level);
 
-    // Mock getLevel to be > config.boost (150).
+    // Mock getLevel to be > config.boost (0.9).
     // This forces the 'else' branch in update().
-    When(Method(pot_mock, getLevel)).AlwaysReturn(200.0f);
+    When(Method(pot_mock, getLevel)).AlwaysReturn(1.0f);
     Fake(Method(pot_mock, setLevel));
 
     actuator.update();
 
     // Logic: above_max_level = config.max + (config.boost - config.max) / 2
-    // above_max_level = 100 + (150 - 100)/2 = 125.
-    Verify(Method(pot_mock, setLevel).Using(125.0f)).Exactly(1);
+    // above_max_level = 0.8 + (0.9 - 0.8)/2 = 0.85.
+    Verify(Method(pot_mock, setLevel).Using(0.85f)).Exactly(1);
   }
 }

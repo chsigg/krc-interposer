@@ -1,18 +1,18 @@
 #pragma once
 
-#include <Arduino.h>
 #include "AnalogReadPin.h"
+#include <Arduino.h>
 
 class ArduinoAnalogReadPin : public AnalogReadPin {
 public:
-    explicit ArduinoAnalogReadPin(int pin) : pin_(pin) {
-        pinMode(pin_, INPUT);
-    }
+  explicit ArduinoAnalogReadPin(int pin, float scale)
+      : pin_(pin), scale_(scale) {
+    pinMode(pin_, INPUT);
+  }
 
-    int32_t read() const override {
-        return analogRead(pin_);
-    }
+  float read() const override { return analogRead(pin_) * scale; }
 
 private:
-    const int pin_;
+  const int pin_;
+  const float scale_;
 };

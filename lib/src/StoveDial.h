@@ -19,6 +19,6 @@ private:
 
   StoveLevel level_ = {};
 
-  std::array<int32_t, 4> last_readings_ = {};
+  std::array<float, 4> last_readings_ = {};
   bool boost_armed_ = true;
 };

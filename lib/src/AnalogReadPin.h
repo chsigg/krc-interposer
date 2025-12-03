@@ -6,5 +6,5 @@ class AnalogReadPin {
 public:
     virtual ~AnalogReadPin() = default;
 
-    virtual int32_t read() const = 0;
+    virtual float read() const = 0;
 };

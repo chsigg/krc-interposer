@@ -17,10 +17,10 @@ void StoveDial::update() {
   std::move(begin + 1, end, begin);
   last_readings_.back() = pin_.read();
 
-  int32_t sum = std::accumulate(begin, end, int32_t(0));
-  int32_t reading = sum / last_readings_.size();
+  float sum = std::accumulate(begin, end, 0.0f);
+  float reading = sum / last_readings_.size();
 
-  level_.base = std::min(static_cast<float>(reading) / config_.max, 1.0f);
+  level_.base = std::min(reading / config_.max, 1.0f);
 
   if (reading < config_.min) {
     level_.base = 0.0f;
