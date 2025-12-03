@@ -10,7 +10,7 @@ public:
     pinMode(pin_, INPUT);
   }
 
-  float read() const override { return analogRead(pin_) * scale; }
+  float read() const override { return analogRead(pin_) * scale_; }
 
 private:
   const int pin_;

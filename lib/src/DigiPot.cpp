@@ -1,8 +1,9 @@
 #include "DigiPot.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
-extern "C" void delayMicroseconds(uint32_t us);
+void delayUs(uint32_t us);
 
 DigiPot::DigiPot(const DigitalWritePin &inc, const DigitalWritePin &ud,
                  const DigitalWritePin &cs)
@@ -26,15 +27,15 @@ float DigiPot::getLevel() const { return current_step_ / (NUM_STEPS - 1.0f); }
 
 void DigiPot::pulse(bool up, int32_t count) {
   ud_.set(up ? PinState::High : PinState::Low);
-  delayMicroseconds(2);
+  delayUs(2);
   cs_.set(PinState::Low);
-  delayMicroseconds(2);
+  delayUs(2);
   for (int32_t i = 0; i < count; ++i) {
     inc_.set(PinState::Low);
-    delayMicroseconds(2);
+    delayUs(2);
     inc_.set(PinState::High);
-    delayMicroseconds(2);
+    delayUs(2);
   }
   cs_.set(PinState::High);
-  delayMicroseconds(2);
+  delayUs(2);
 }
