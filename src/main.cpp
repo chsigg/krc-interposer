@@ -21,7 +21,7 @@ void delayUs(uint32_t us) { delayMicroseconds(us); }
 // --- Hardware Instantiation ---
 
 // Actuator Pins
-ArduinoDigitalWritePin inc(2), ud(3), cs(4);
+ArduinoDigitalWritePin inc(D1), ud(D2), cs(D3);
 DigiPot pot(inc, ud, cs);
 LevelConfig level_config; // Defaults
 StoveActuator actuator(pot, level_config);
@@ -31,7 +31,7 @@ ArduinoAnalogReadPin read_pin(A0, 1.0f / 1023.0f);
 StoveDial dial(read_pin, level_config);
 
 // Audio
-ArduinoBuzzer buzzer(10, 11);
+ArduinoBuzzer buzzer(D5, D8);
 Beeper beeper(buzzer);
 
 // Logic Modules
@@ -50,6 +50,8 @@ BleShutterClient bleShutter(supervisor);
 
 void setup() {
   Serial.begin(115200);
+  Serial.println("Stove Controller Starting...");
+  pinMode(LED_RED, OUTPUT);
 }
 
 void loop() {
@@ -63,6 +65,37 @@ void loop() {
 
   // Actuator update (actually sends to Pot)
   actuator.update();
+
+  static uint32_t last_log = 0;
+  static bool led_state = false;
+  if (millis() - last_log > 1000) {
+    last_log = millis();
+    Serial.println("");
+
+    Serial.print("Dial: level ");
+    Serial.print(dial.getLevel().base);
+    Serial.print(", boost ");
+    Serial.println(dial.getLevel().boost);
+
+    Serial.print("Analyzer: ");
+    Serial.print(analyzer.getValue(millis()));
+    Serial.print("°C ");
+    Serial.print(analyzer.getSlope());
+    Serial.println("°C/ms ");
+
+    Serial.print("Controller: level ");
+    Serial.print(controller.getLevel());
+    Serial.print(", lid open ");
+    Serial.println(controller.isLidOpen());
+
+    Serial.print("Actuator: level ");
+    Serial.print(actuator.getLevel().base);
+    Serial.print(", boost ");
+    Serial.println(actuator.getLevel().boost);
+
+    led_state = !led_state;
+    digitalWrite(LED_RED, led_state ? HIGH : LOW);
+  }
 
   delay(10);
 }

@@ -1,4 +1,5 @@
 #include "BleClient.h"
+#include <Arduino.h>
 #include <cassert>
 #include <cstddef>
 #include <memory>
@@ -19,15 +20,19 @@ public:
 BleClient::BleClient(uint16_t service_uuid, uint16_t char_uuid)
     : service_(service_uuid),
       char_(std::make_unique<BleCharacteristic>(char_uuid, this)) {
+  bool found = false;
   for (auto &client : sBleClients) {
     if (client == nullptr) {
       client = this;
-      return;
+      found = true;
+      break;
     }
   }
-  assert(false && "Too many BleClients");
+  assert(found && "Too many BleClients");
 
-  [[maybe_unused]] static bool initialized = [] { return initialize(), true; }();
+  [[maybe_unused]] static bool initialized = [] {
+    return initialize(), true;
+  }();
   service_.begin();
   char_->setNotifyCallback(notifyCallback);
   char_->begin(&service_);
@@ -58,16 +63,30 @@ void BleClient::initialize() {
 }
 
 void BleClient::scanCallback(ble_gap_evt_adv_report_t *report) {
+  Serial.print("BleClient Scan Callback: ");
+
   for (auto client : sBleClients) {
-    if (client &&
-        Bluefruit.Scanner.checkReportForUuid(report, client->service_.uuid)) {
-      Bluefruit.Central.connect(report);
-      return;
+    if (client == nullptr) {
+      continue;
     }
+
+    if (!Bluefruit.Scanner.checkReportForUuid(report, client->service_.uuid)) {
+      continue;
+    }
+
+    Serial.print("Connecting to ");
+    Serial.println(client->service_.uuid.toString());
+    Bluefruit.Central.connect(report);
+    return;
   }
 }
 
+Serial.println("no client found");
+}
+
 void BleClient::connectCallback(uint16_t conn_handle) {
+  Serial.print("BleClient Connect Callback: handle ");
+  Serial.println(conn_handle);
 
   if (BLEConnection *conn = Bluefruit.Connection(conn_handle); !conn) {
     return;
@@ -83,17 +102,23 @@ void BleClient::connectCallback(uint16_t conn_handle) {
     }
 
     if (!client->char_->discover()) {
+      Serial.println("BleClient: Service discovered but Char discovery failed");
       // TODO: disconnect
       continue;
     }
 
     client->char_->enableNotify();
     client->connectionCallback(true);
+    Serial.println("BleClient: Connected and subscribed");
     return;
   }
 }
 
 void BleClient::disconnectCallback(uint16_t conn_handle, uint8_t reason) {
+  Serial.print("BleClient Disconnect Callback: ");
+  Serial.print(conn_handle);
+  Serial.print(" Reason: ");
+  Serial.println(reason);
   for (auto client : sBleClients) {
     if (client == nullptr) {
       continue;
