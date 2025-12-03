@@ -2,12 +2,13 @@
 #include <algorithm>
 #include <cmath>
 
+extern "C" void delayMicroseconds(uint32_t us);
+
 DigiPot::DigiPot(const DigitalWritePin &inc, const DigitalWritePin &ud,
                  const DigitalWritePin &cs)
-    : inc_(inc), ud_(ud), cs_(cs), current_step_(0) {
+    : inc_(inc), ud_(ud), cs_(cs) {
   inc_.set(PinState::High);
   pulse(false, NUM_STEPS);
-  current_step_ = 0;
 }
 
 void DigiPot::setLevel(float level) {
@@ -25,12 +26,15 @@ float DigiPot::getLevel() const { return current_step_ / (NUM_STEPS - 1.0f); }
 
 void DigiPot::pulse(bool up, int32_t count) {
   ud_.set(up ? PinState::High : PinState::Low);
-  inc_.set(PinState::High);
-  cs_.set(PinState::Low); // Select
+  delayMicroseconds(2);
+  cs_.set(PinState::Low);
+  delayMicroseconds(2);
   for (int32_t i = 0; i < count; ++i) {
     inc_.set(PinState::Low);
-    // Note: Delays might be needed here depending on MCU speed (min 1us)
+    delayMicroseconds(2);
     inc_.set(PinState::High);
+    delayMicroseconds(2);
   }
-  cs_.set(PinState::High); // Deselect
+  cs_.set(PinState::High);
+  delayMicroseconds(2);
 }

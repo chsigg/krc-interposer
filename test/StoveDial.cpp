@@ -1,7 +1,7 @@
 #include "StoveDial.h"
 #include "AnalogReadPin.h"
+#include <ArduinoFake.h>
 #include <doctest.h>
-#include <fakeit.hpp>
 
 using namespace fakeit;
 

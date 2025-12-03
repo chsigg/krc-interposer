@@ -14,6 +14,7 @@ TEST_CASE("DigiPot Driver") {
     Fake(Method(inc_mock, set));
     Fake(Method(ud_mock, set));
     Fake(Method(cs_mock, set));
+    Fake(Method(ArduinoFake(), delayMicroseconds));
 
     DigiPot driver(inc_mock.get(), ud_mock.get(), cs_mock.get());
 
