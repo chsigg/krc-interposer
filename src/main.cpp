@@ -1,18 +1,18 @@
 #include <Adafruit_TinyUSB.h>
 #include <Arduino.h>
+#include <Streaming.h>
 #include <bluefruit.h>
 
-#include "BleShutterClient.h"
-#include "BleTemperatureClient.h"
-#include "StoveSupervisor.h"
-
-// Hardware Drivers
 #include "ArduinoAnalogReadPin.h"
 #include "ArduinoBuzzer.h"
 #include "ArduinoDigitalWritePin.h"
 #include "Beeper.h"
+#include "BleShutterClient.h"
+#include "BleTemperatureClient.h"
 #include "StoveActuator.h"
 #include "StoveDial.h"
+#include "StoveSupervisor.h"
+#include "Streaming.h"
 #include "ThermalController.h"
 #include "TrendAnalyzer.h"
 
@@ -41,16 +41,20 @@ ThermalController controller(analyzer, thermal_config);
 
 // Supervisor
 StoveConfig stove_config;
-StoveSupervisor supervisor(dial, actuator, controller, beeper, analyzer, stove_config, level_config);
+StoveSupervisor supervisor(dial, actuator, controller, beeper, analyzer,
+                           stove_config, level_config);
 
 // BLE Modules
 BleTemperatureClient bleTemp(supervisor, analyzer);
 BleShutterClient bleShutter(supervisor);
 
-
 void setup() {
   Serial.begin(115200);
-  Serial.println("Stove Controller Starting...");
+  while (!Serial && millis() < 5000) {
+    delay(10);
+  }
+  Serial << "Stove Controller Starting..." << endl;
+  BleClient::begin();
   pinMode(LED_RED, OUTPUT);
 }
 
@@ -70,28 +74,18 @@ void loop() {
   static bool led_state = false;
   if (millis() - last_log > 1000) {
     last_log = millis();
-    Serial.println("");
 
-    Serial.print("Dial: level ");
-    Serial.print(dial.getLevel().base);
-    Serial.print(", boost ");
-    Serial.println(dial.getLevel().boost);
-
-    Serial.print("Analyzer: ");
-    Serial.print(analyzer.getValue(millis()));
-    Serial.print("°C ");
-    Serial.print(analyzer.getSlope());
-    Serial.println("°C/ms ");
-
-    Serial.print("Controller: level ");
-    Serial.print(controller.getLevel());
-    Serial.print(", lid open ");
-    Serial.println(controller.isLidOpen());
-
-    Serial.print("Actuator: level ");
-    Serial.print(actuator.getLevel().base);
-    Serial.print(", boost ");
-    Serial.println(actuator.getLevel().boost);
+    /*
+    Serial << endl;
+    Serial << "Analyzer: " << analyzer.getValue(millis()) << "°C "
+           << analyzer.getSlope() << "°C/ms " << endl;
+    Serial << "Dial: level " << dial.getLevel().base << ", boost "
+           << dial.getLevel().boost << endl;
+    Serial << "Controller: level " << controller.getLevel() << ", lid open "
+           << controller.isLidOpen() << endl;
+    Serial << "Actuator: level " << actuator.getLevel().base << ", boost "
+           << actuator.getLevel().boost << endl;
+    */
 
     led_state = !led_state;
     digitalWrite(LED_RED, led_state ? HIGH : LOW);

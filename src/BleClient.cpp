@@ -1,7 +1,9 @@
 #include "BleClient.h"
+#include "Streaming.h"
 #include <Arduino.h>
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 
 static std::array<BleClient *, 2> sBleClients = {};
@@ -20,22 +22,13 @@ public:
 BleClient::BleClient(uint16_t service_uuid, uint16_t char_uuid)
     : service_(service_uuid),
       char_(std::make_unique<BleCharacteristic>(char_uuid, this)) {
-  bool found = false;
   for (auto &client : sBleClients) {
     if (client == nullptr) {
       client = this;
-      found = true;
-      break;
+      return;
     }
   }
-  assert(found && "Too many BleClients");
-
-  [[maybe_unused]] static bool initialized = [] {
-    return initialize(), true;
-  }();
-  service_.begin();
-  char_->setNotifyCallback(notifyCallback);
-  char_->begin(&service_);
+  assert(false && "Too many BleClients");
 }
 
 BleClient::~BleClient() {
@@ -47,49 +40,85 @@ BleClient::~BleClient() {
   }
 }
 
-void BleClient::initialize() {
+void BleClient::begin() {
+  Serial << "Initializing BLE" << endl;
+
   Bluefruit.begin(0, sBleClients.size());
   Bluefruit.setName("KRC Interposer");
 
   // Callbacks
   Bluefruit.Central.setConnectCallback(connectCallback);
   Bluefruit.Central.setDisconnectCallback(disconnectCallback);
-  Bluefruit.Scanner.setRxCallback(scanCallback);
+  // Bluefruit.Central.setConnInterval(8, 1600); // 10ms - 2s
 
+  std::array<BLEUuid, sBleClients.size()> uuids;
+  uint8_t count = 0;
+
+  for (auto client : sBleClients) {
+    if (client == nullptr) {
+      continue;
+    }
+    Serial << "Initializing Client " << client->service_.uuid.toString()
+           << endl;
+    client->service_.begin();
+    client->char_->setNotifyCallback(notifyCallback);
+    client->char_->begin(&client->service_);
+    uuids[count++] = client->service_.uuid;
+  }
+
+  Bluefruit.Scanner.setRxCallback(scanCallback);
   Bluefruit.Scanner.restartOnDisconnect(true);
-  Bluefruit.Scanner.setInterval(160, 80); // 100ms
+  Bluefruit.Scanner.setInterval(160, 80); // Scan every 200ms for 100ms
   Bluefruit.Scanner.useActiveScan(true);
+  Bluefruit.Scanner.filterUuid(uuids.data(), count);
   Bluefruit.Scanner.start(0);
 }
 
 void BleClient::scanCallback(ble_gap_evt_adv_report_t *report) {
-  Serial.print("BleClient Scan Callback: ");
+  Serial << "BleClient Scan Callback: ";
+
+  char name[32] = {};
+  if (Bluefruit.Scanner.parseReportByType(
+          report, BLE_GAP_AD_TYPE_COMPLETE_LOCAL_NAME,
+          reinterpret_cast<uint8_t *>(name), std::size(name) - 1) ||
+      Bluefruit.Scanner.parseReportByType(
+          report, BLE_GAP_AD_TYPE_SHORT_LOCAL_NAME,
+          reinterpret_cast<uint8_t *>(name), std::size(name) - 1)) {
+    Serial << name << " ";
+  }
 
   for (auto client : sBleClients) {
     if (client == nullptr) {
       continue;
     }
 
-    if (!Bluefruit.Scanner.checkReportForUuid(report, client->service_.uuid)) {
+    if (!Bluefruit.Scanner.checkReportForService(report, client->service_)) {
       continue;
     }
 
-    Serial.print("Connecting to ");
-    Serial.println(client->service_.uuid.toString());
+    if (!client->scanCallback(name)) {
+      continue;
+    }
+
+    Serial << "Connecting to " << client->service_.uuid.toString() << endl;
     Bluefruit.Central.connect(report);
     return;
   }
-}
 
-Serial.println("no client found");
+  Serial << "no client found" << endl;
 }
 
 void BleClient::connectCallback(uint16_t conn_handle) {
-  Serial.print("BleClient Connect Callback: handle ");
-  Serial.println(conn_handle);
+  Serial << "BleClient Connect Callback: handle " << conn_handle << endl;
 
-  if (BLEConnection *conn = Bluefruit.Connection(conn_handle); !conn) {
+  BLEConnection *conn = Bluefruit.Connection(conn_handle);
+  if (!conn) {
     return;
+  }
+
+  // interval = 1000ms, latency = 0, timeout = 5000ms
+  if (!conn->requestConnectionParameter(800, 0, 500)) {
+    Serial << "Failed to request connection parameters" << endl;
   }
 
   for (auto client : sBleClients) {
@@ -102,23 +131,21 @@ void BleClient::connectCallback(uint16_t conn_handle) {
     }
 
     if (!client->char_->discover()) {
-      Serial.println("BleClient: Service discovered but Char discovery failed");
+      Serial << "BleClient: char discovery failed" << endl;
       // TODO: disconnect
       continue;
     }
 
     client->char_->enableNotify();
     client->connectionCallback(true);
-    Serial.println("BleClient: Connected and subscribed");
+    Serial << "BleClient: Connected and subscribed" << endl;
     return;
   }
 }
 
 void BleClient::disconnectCallback(uint16_t conn_handle, uint8_t reason) {
-  Serial.print("BleClient Disconnect Callback: ");
-  Serial.print(conn_handle);
-  Serial.print(" Reason: ");
-  Serial.println(reason);
+  Serial << "BleClient Disconnect Callback: handle " << conn_handle
+         << ", reason: " << reason << endl;
   for (auto client : sBleClients) {
     if (client == nullptr) {
       continue;

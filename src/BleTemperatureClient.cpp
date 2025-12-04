@@ -1,12 +1,13 @@
 #include "BleTemperatureClient.h"
+#include "Streaming.h"
 #include "TemperatureClient.h"
 #include <Arduino.h>
 
-BleTemperatureClient::BleTemperatureClient(StoveSupervisor& supervisor, TrendAnalyzer& analyzer)
+BleTemperatureClient::BleTemperatureClient(StoveSupervisor &supervisor,
+                                           TrendAnalyzer &analyzer)
     : BleClient(UUID16_SVC_HEALTH_THERMOMETER,
                 UUID16_CHR_INTERMEDIATE_TEMPERATURE),
-      supervisor_(supervisor),
-      analyzer_(analyzer) {}
+      supervisor_(supervisor), analyzer_(analyzer) {}
 
 void BleTemperatureClient::connectionCallback(bool connected) {
   if (connected) {
@@ -22,6 +23,7 @@ void BleTemperatureClient::notifyCallback(uint8_t *data, uint16_t len) {
 
   last_update_ms_ = millis();
   float temp = TemperatureClient::decodeIEEE11073(data);
+  Serial << "Temperature Client: " << temp << "°C" << endl;
 
   analyzer_.addReading(temp, last_update_ms_);
 }
