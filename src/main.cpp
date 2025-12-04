@@ -7,6 +7,7 @@
 #include "ArduinoBuzzer.h"
 #include "ArduinoDigitalWritePin.h"
 #include "Beeper.h"
+#include "Blinker.h"
 #include "BleShutterClient.h"
 #include "BleTemperatureClient.h"
 #include "StoveActuator.h"
@@ -30,9 +31,11 @@ StoveActuator actuator(pot, level_config);
 ArduinoAnalogReadPin read_pin(A0, 1.0f / 1023.0f);
 StoveDial dial(read_pin, level_config);
 
-// Audio
+// Feedback
 ArduinoBuzzer buzzer(D5, D8);
 Beeper beeper(buzzer);
+ArduinoDigitalWritePin red_led(LED_RED);
+Blinker blinker(red_led);
 
 // Logic Modules
 TrendAnalyzer analyzer;
@@ -55,12 +58,13 @@ void setup() {
   }
   Serial << "Stove Controller Starting..." << endl;
   BleClient::begin();
-  pinMode(LED_RED, OUTPUT);
+  blinker.blink(Blinker::Signal::REPEAT);
 }
 
 void loop() {
   // Update hardware/logic
   beeper.update();
+  blinker.update();
   dial.update();
   controller.update(); // calculates PID based on analyzer
 
@@ -71,7 +75,6 @@ void loop() {
   actuator.update();
 
   static uint32_t last_log = 0;
-  static bool led_state = false;
   if (millis() - last_log > 1000) {
     last_log = millis();
 
@@ -86,9 +89,6 @@ void loop() {
     Serial << "Actuator: level " << actuator.getLevel().base << ", boost "
            << actuator.getLevel().boost << endl;
     */
-
-    led_state = !led_state;
-    digitalWrite(LED_RED, led_state ? HIGH : LOW);
   }
 
   delay(10);

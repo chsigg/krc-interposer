@@ -1,25 +1,23 @@
 #pragma once
 
-#include "Buzzer.h"
+#include "DigitalWritePin.h"
 #include <cstdint>
 
-class Beeper {
+class Blinker {
 public:
   enum class Signal {
     NONE,
-    ACCEPT,
-    REJECT,
-    ERROR,
+    ONCE,
+    REPEAT,
   };
 
-  explicit Beeper(Buzzer &buzzer);
+  explicit Blinker(DigitalWritePin &led);
 
-  virtual void beep(Signal signal);
-
+  void blink(Signal signal);
   void update();
 
 private:
-  Buzzer &buzzer_;
+  DigitalWritePin &led_;
 
   uint32_t step_ = 0;
   uint32_t next_step_time_ms_ = 0;

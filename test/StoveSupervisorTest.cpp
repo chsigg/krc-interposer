@@ -53,7 +53,7 @@ TEST_CASE("StoveSupervisor Logic") {
 
     // Verify Target Temp: 20 + 0.5 * (120 - 20) = 70.0
     Verify(Method(controller_mock, setTargetTemp).Using(70.0f)).Exactly(1);
-    Verify(Method(beeper_mock, beep).Using(100)).Exactly(1);
+    Verify(Method(beeper_mock, beep).Using(Beeper::Signal::ACCEPT)).Exactly(1);
   }
 
   SUBCASE("Safety check stale data") {
@@ -79,7 +79,7 @@ TEST_CASE("StoveSupervisor Logic") {
     // Verify Alarm Beep (time aligned)
     set_time(20000);
     supervisor.update();
-    Verify(Method(beeper_mock, beep).Using(50)).AtLeast(1);
+    Verify(Method(beeper_mock, beep).Using(Beeper::Signal::ERROR)).AtLeast(1);
   }
 
   SUBCASE("PID integration and clamping") {

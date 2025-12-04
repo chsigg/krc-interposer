@@ -23,8 +23,7 @@ void StoveSupervisor::takeSnapshot() {
 
   controller_.setTargetTemp(target_temp);
 
-  // TODO: Trigger double beep (add modes to Beeper)
-  beeper_.beep(100);
+  beeper_.beep(Beeper::Signal::ACCEPT);
 }
 
 void StoveSupervisor::update() {
@@ -35,7 +34,7 @@ void StoveSupervisor::update() {
     actuator_.setLevel(StoveLevel{});
     // Alarm beep every second
     if (now % 1000 < 100) {
-      beeper_.beep(50);
+      beeper_.beep(Beeper::Signal::ERROR);
     }
     return;
   }

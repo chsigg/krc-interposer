@@ -40,49 +40,40 @@ BleClient::~BleClient() {
   }
 }
 
+bool BleClient::scanCallback(const ble_gap_evt_adv_report_t *report) {
+  return Bluefruit.Scanner.checkReportForService(report, service_);
+};
+
 void BleClient::begin() {
   Serial << "BleClient::begin()" << endl;
 
   Bluefruit.begin(0, sBleClients.size());
   Bluefruit.setName("KRC Interposer");
 
-  // Callbacks
-  Bluefruit.Central.setConnectCallback(connectCallback);
-  Bluefruit.Central.setDisconnectCallback(disconnectCallback);
-  // Bluefruit.Central.setConnInterval(8, 1600); // 10ms - 2s
-
-  std::array<BLEUuid, sBleClients.size()> uuids;
-  uint8_t count = 0;
+  Bluefruit.Central.setConnectCallback(globalConnectCallback);
+  Bluefruit.Central.setDisconnectCallback(globalDisconnectCallback);
 
   for (auto client : sBleClients) {
     if (client == nullptr) {
       continue;
     }
     client->service_.begin();
-    client->char_->setNotifyCallback(notifyCallback);
+    client->char_->setNotifyCallback(globalNotifyCallback);
     client->char_->begin(&client->service_);
-    uuids[count++] = client->service_.uuid;
   }
 
-  Bluefruit.Scanner.setRxCallback(scanCallback);
+  Bluefruit.Scanner.setRxCallback(globalScanCallback);
   Bluefruit.Scanner.restartOnDisconnect(true);
   Bluefruit.Scanner.setInterval(160, 80); // Scan every 200ms for 100ms
   Bluefruit.Scanner.useActiveScan(true);
-  Bluefruit.Scanner.filterUuid(uuids.data(), count);
   Bluefruit.Scanner.start(0);
 }
 
-void BleClient::scanCallback(ble_gap_evt_adv_report_t *report) {
+void BleClient::globalScanCallback(ble_gap_evt_adv_report_t *report) {
 
-  char name[32] = {};
-  auto get_name = [&](uint8_t type) {
-    return Bluefruit.Scanner.parseReportByType(
-        report, type, reinterpret_cast<uint8_t *>(name), std::size(name) - 1);
-  };
-  get_name(BLE_GAP_AD_TYPE_COMPLETE_LOCAL_NAME) ||
-      get_name(BLE_GAP_AD_TYPE_SHORT_LOCAL_NAME);
-
-  Serial << "BleClient::scanCallback(" << name << ")" << endl;
+  Serial << "BleClient::scanCallback(";
+  Serial.printBufferReverse(report->peer_addr.addr, 6, ':');
+  Serial << ")" << endl;
 
   auto is_disconnected = [](BleClient *client) {
     return client && client->service_.connHandle() == BLE_CONN_HANDLE_INVALID;
@@ -98,11 +89,7 @@ void BleClient::scanCallback(ble_gap_evt_adv_report_t *report) {
       continue;
     }
 
-    if (!Bluefruit.Scanner.checkReportForService(report, client->service_)) {
-      continue;
-    }
-
-    if (!client->scanCallback(name)) {
+    if (!client->scanCallback(report)) {
       continue;
     }
 
@@ -119,7 +106,7 @@ void BleClient::scanCallback(ble_gap_evt_adv_report_t *report) {
   Bluefruit.Scanner.resume();
 }
 
-void BleClient::connectCallback(uint16_t conn_handle) {
+void BleClient::globalConnectCallback(uint16_t conn_handle) {
   Serial << "BleClient::connectCallback(/*handle=*/" << conn_handle << ")"
          << endl;
 
@@ -155,7 +142,7 @@ void BleClient::connectCallback(uint16_t conn_handle) {
   }
 }
 
-void BleClient::disconnectCallback(uint16_t conn_handle, uint8_t reason) {
+void BleClient::globalDisconnectCallback(uint16_t conn_handle, uint8_t reason) {
   Serial << "BleClient::disconnectCallback(/*handle=*/" << conn_handle
          << ", /*reason=*/" << reason << ")" << endl;
 
@@ -173,7 +160,7 @@ void BleClient::disconnectCallback(uint16_t conn_handle, uint8_t reason) {
   }
 }
 
-void BleClient::notifyCallback(BLEClientCharacteristic *characteristic,
+void BleClient::globalNotifyCallback(BLEClientCharacteristic *characteristic,
                                uint8_t *data, uint16_t len) {
   static_cast<BleCharacteristic *>(characteristic)
       ->client->notifyCallback(data, len);
