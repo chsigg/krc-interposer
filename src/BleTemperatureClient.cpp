@@ -23,7 +23,7 @@ void BleTemperatureClient::notifyCallback(uint8_t *data, uint16_t len) {
 
   last_update_ms_ = millis();
   float temp = TemperatureClient::decodeIEEE11073(data);
-  Serial << "Temperature Client: " << temp << "°C" << endl;
+  Serial << "BleTemperatureClient::notifyCallback(" << temp << "°C)" << endl;
 
   analyzer_.addReading(temp, last_update_ms_);
 }

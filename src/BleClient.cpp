@@ -41,7 +41,7 @@ BleClient::~BleClient() {
 }
 
 void BleClient::begin() {
-  Serial << "Initializing BLE" << endl;
+  Serial << "BleClient::begin()" << endl;
 
   Bluefruit.begin(0, sBleClients.size());
   Bluefruit.setName("KRC Interposer");
@@ -58,8 +58,6 @@ void BleClient::begin() {
     if (client == nullptr) {
       continue;
     }
-    Serial << "Initializing Client " << client->service_.uuid.toString()
-           << endl;
     client->service_.begin();
     client->char_->setNotifyCallback(notifyCallback);
     client->char_->begin(&client->service_);
@@ -75,16 +73,24 @@ void BleClient::begin() {
 }
 
 void BleClient::scanCallback(ble_gap_evt_adv_report_t *report) {
-  Serial << "BleClient Scan Callback: ";
 
   char name[32] = {};
-  if (Bluefruit.Scanner.parseReportByType(
-          report, BLE_GAP_AD_TYPE_COMPLETE_LOCAL_NAME,
-          reinterpret_cast<uint8_t *>(name), std::size(name) - 1) ||
-      Bluefruit.Scanner.parseReportByType(
-          report, BLE_GAP_AD_TYPE_SHORT_LOCAL_NAME,
-          reinterpret_cast<uint8_t *>(name), std::size(name) - 1)) {
-    Serial << name << " ";
+  auto get_name = [&](uint8_t type) {
+    return Bluefruit.Scanner.parseReportByType(
+        report, type, reinterpret_cast<uint8_t *>(name), std::size(name) - 1);
+  };
+  get_name(BLE_GAP_AD_TYPE_COMPLETE_LOCAL_NAME) ||
+      get_name(BLE_GAP_AD_TYPE_SHORT_LOCAL_NAME);
+
+  Serial << "BleClient::scanCallback(" << name << ")" << endl;
+
+  auto is_disconnected = [](BleClient *client) {
+    return client && client->service_.connHandle() == BLE_CONN_HANDLE_INVALID;
+  };
+  size_t num_disconnected =
+      std::count_if(sBleClients.begin(), sBleClients.end(), is_disconnected);
+  if (num_disconnected == 0) {
+    return;
   }
 
   for (auto client : sBleClients) {
@@ -100,16 +106,22 @@ void BleClient::scanCallback(ble_gap_evt_adv_report_t *report) {
       continue;
     }
 
-    Serial << "Connecting to " << client->service_.uuid.toString() << endl;
+    Serial << "  Connecting " << client->service_.uuid.toString() << endl;
     Bluefruit.Central.connect(report);
+
+    if (num_disconnected > 1) {
+      Bluefruit.Scanner.resume();
+    }
+
     return;
   }
 
-  Serial << "no client found" << endl;
+  Bluefruit.Scanner.resume();
 }
 
 void BleClient::connectCallback(uint16_t conn_handle) {
-  Serial << "BleClient Connect Callback: handle " << conn_handle << endl;
+  Serial << "BleClient::connectCallback(/*handle=*/" << conn_handle << ")"
+         << endl;
 
   BLEConnection *conn = Bluefruit.Connection(conn_handle);
   if (!conn) {
@@ -131,21 +143,22 @@ void BleClient::connectCallback(uint16_t conn_handle) {
     }
 
     if (!client->char_->discover()) {
-      Serial << "BleClient: char discovery failed" << endl;
+      Serial << "Failed to discover characteristic" << endl;
       // TODO: disconnect
       continue;
     }
 
     client->char_->enableNotify();
     client->connectionCallback(true);
-    Serial << "BleClient: Connected and subscribed" << endl;
+    Serial << "  Connected " << client->service_.uuid.toString() << endl;
     return;
   }
 }
 
 void BleClient::disconnectCallback(uint16_t conn_handle, uint8_t reason) {
-  Serial << "BleClient Disconnect Callback: handle " << conn_handle
-         << ", reason: " << reason << endl;
+  Serial << "BleClient::disconnectCallback(/*handle=*/" << conn_handle
+         << ", /*reason=*/" << reason << ")" << endl;
+
   for (auto client : sBleClients) {
     if (client == nullptr) {
       continue;
