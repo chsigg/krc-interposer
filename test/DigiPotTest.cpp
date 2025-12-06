@@ -32,7 +32,7 @@ TEST_CASE("DigiPot Driver") {
 
         Verify(Method(cs_mock, set).Using(PinState::High)); // Deselect
 
-        CHECK(driver.getLevel() == 0.0f);
+        CHECK(driver.getPosition() == 0.0f);
     }
 
     SUBCASE("Set step increments correctly") {
@@ -41,23 +41,23 @@ TEST_CASE("DigiPot Driver") {
         ud_mock.ClearInvocationHistory();
         cs_mock.ClearInvocationHistory();
 
-        float level = 10 / (DigiPot::NUM_STEPS-1.0f);
+        float position = 10 / (DigiPot::NUM_STEPS-1.0f);
 
-        driver.setLevel(level);
+        driver.setPosition(position);
 
         Verify(Method(ud_mock, set).Using(PinState::High));  // Up
         Verify(Method(cs_mock, set).Using(PinState::Low)); // Select
         Verify(Method(inc_mock, set).Using(PinState::Low)).Exactly(10); // 10 pulses
         Verify(Method(cs_mock, set).Using(PinState::High));  // Deselect
 
-        CHECK(driver.getLevel() == level);
+        CHECK(driver.getPosition() == position);
     }
 
     SUBCASE("Set step clamps to limits") {
-        driver.setLevel(1.5f);
-        CHECK(driver.getLevel() == 1.0f);
+        driver.setPosition(1.5f);
+        CHECK(driver.getPosition() == 1.0f);
 
-        driver.setLevel(-0.5f);
-        CHECK(driver.getLevel() == 0.0f);
+        driver.setPosition(-0.5f);
+        CHECK(driver.getPosition() == 0.0f);
     }
 }

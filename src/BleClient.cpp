@@ -34,15 +34,6 @@ bool BleClient::isConnected() const {
          BLE_CONN_HANDLE_INVALID;
 }
 
-static bool isAnyClientDisconnected() {
-  for (auto client : sBleClients) {
-    if (client && !client->isConnected()) {
-      return true;
-    }
-  }
-  return false;
-}
-
 void BleClient::begin() {
   Serial << "BleClient::begin()" << endl;
 

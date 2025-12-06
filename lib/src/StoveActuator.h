@@ -1,22 +1,22 @@
 #pragma once
 
 #include "DigiPot.h"
-#include "StoveLevel.h"
+#include "StoveThrottle.h"
 #include <cstdint>
 
 class StoveActuator {
 public:
-    StoveActuator(DigiPot& pot, const LevelConfig& config);
+    StoveActuator(DigiPot& pot, const ThrottleConfig& config);
 
-    virtual void setLevel(const StoveLevel& level);
-    StoveLevel getLevel() const { return target_level_; }
+    virtual void setThrottle(const StoveThrottle& throttle);
+    StoveThrottle getThrottle() const { return target_throttle_; }
 
     void update();
 
 private:
     DigiPot& pot_;
-    const LevelConfig config_;
+    const ThrottleConfig config_;
 
-    StoveLevel target_level_ = {};
+    StoveThrottle target_throttle_ = {};
     uint32_t current_boost_ = 0;
 };

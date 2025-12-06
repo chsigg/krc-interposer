@@ -1,23 +1,23 @@
 #pragma once
 
 #include "AnalogReadPin.h"
-#include "StoveLevel.h"
+#include "StoveThrottle.h"
 #include <array>
 #include <cstdint>
 
 class StoveDial {
 public:
-  StoveDial(const AnalogReadPin &pin, const LevelConfig &config);
+  StoveDial(const AnalogReadPin &pin, const ThrottleConfig &config);
 
   void update();
 
-  virtual StoveLevel getLevel() const;
+  virtual StoveThrottle getThrottle() const;
 
 private:
   const AnalogReadPin &pin_;
-  const LevelConfig config_;
+  const ThrottleConfig config_;
 
-  StoveLevel level_ = {};
+  StoveThrottle throttle_ = {};
 
   std::array<float, 4> last_readings_ = {};
   bool boost_armed_ = true;

@@ -10,8 +10,8 @@ public:
     DigiPot(const DigitalWritePin& inc, const DigitalWritePin& ud, const DigitalWritePin& cs);
     virtual ~DigiPot() = default;
 
-    virtual void setLevel(float level);
-    virtual float getLevel() const;
+    virtual void setPosition(float position);
+    virtual float getPosition() const;
 
 private:
     void pulse(bool up, int32_t count);

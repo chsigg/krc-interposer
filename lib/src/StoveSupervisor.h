@@ -19,7 +19,7 @@ public:
                   ThermalController &controller, Beeper &beeper,
                   const TrendAnalyzer &analyzer,
                   const StoveConfig &config,
-                  const LevelConfig &level_config);
+                  const ThrottleConfig &throttle_config);
 
   void update();
 
@@ -33,5 +33,5 @@ private:
   Beeper &beeper_;
   const TrendAnalyzer &analyzer_;
   const StoveConfig stove_config_;
-  const LevelConfig level_config_;
+  const ThrottleConfig throttle_config_;
 };

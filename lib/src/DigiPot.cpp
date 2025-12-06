@@ -12,8 +12,8 @@ DigiPot::DigiPot(const DigitalWritePin &inc, const DigitalWritePin &ud,
   pulse(false, NUM_STEPS);
 }
 
-void DigiPot::setLevel(float level) {
-  int32_t step = std::lround(std::clamp(level, 0.0f, 1.0f) * (NUM_STEPS - 1));
+void DigiPot::setPosition(float position) {
+  int32_t step = std::lround(std::clamp(position, 0.0f, 1.0f) * (NUM_STEPS - 1));
 
   if (step == current_step_) {
     return;
@@ -23,7 +23,7 @@ void DigiPot::setLevel(float level) {
   current_step_ = step;
 }
 
-float DigiPot::getLevel() const { return current_step_ / (NUM_STEPS - 1.0f); }
+float DigiPot::getPosition() const { return current_step_ / (NUM_STEPS - 1.0f); }
 
 void DigiPot::pulse(bool up, int32_t count) {
   ud_.set(up ? PinState::High : PinState::Low);

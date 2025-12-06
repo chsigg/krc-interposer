@@ -1,6 +1,8 @@
 #pragma once
 
-enum class PinState {
+#include <cstdint>
+
+enum class PinState  {
     Low,
     High
 };

@@ -15,14 +15,13 @@ TEST_CASE("Blinker Logic") {
     When(Method(ArduinoFake(), millis)).AlwaysReturn(1000);
     blinker.blink(Blinker::Signal::REPEAT);
     blinker.update();
-    Verify(Method(led_mock, set).Using(PinState::High)).Once();
+    Verify(Method(led_mock, set).Using(PinState::Low)).Once();
 
     blinker.blink(Blinker::Signal::NONE);
     blinker.update();
-    Verify(Method(led_mock, set).Using(PinState::Low)).Once();
-    // after blinking none, update should do nothing
+    Verify(Method(led_mock, set).Using(PinState::High)).Once();
     blinker.update();
-    Verify(Method(led_mock, set).Using(PinState::Low)).Twice();
+    VerifyNoOtherInvocations(led_mock);
   }
 
   SUBCASE("ONCE signal") {
@@ -31,17 +30,17 @@ TEST_CASE("Blinker Logic") {
 
     // First update, LED should be on
     blinker.update();
-    Verify(Method(led_mock, set).Using(PinState::High)).Once();
+    Verify(Method(led_mock, set).Using(PinState::Low)).Once();
 
     // After 100ms, LED should be off and signal finished
     When(Method(ArduinoFake(), millis)).AlwaysReturn(1000 + 100);
     blinker.update();
-    Verify(Method(led_mock, set).Using(PinState::Low)).Once();
+    Verify(Method(led_mock, set).Using(PinState::High)).Once();
 
     // After that, it should stay off
     When(Method(ArduinoFake(), millis)).AlwaysReturn(1000 + 200);
     blinker.update();
-    Verify(Method(led_mock, set).Using(PinState::Low)).Twice();
+    VerifyNoOtherInvocations(led_mock);
   }
 
   SUBCASE("REPEAT signal") {
@@ -50,21 +49,21 @@ TEST_CASE("Blinker Logic") {
 
     // First update, LED should be on for 100ms
     blinker.update();
-    Verify(Method(led_mock, set).Using(PinState::High)).Once();
+    Verify(Method(led_mock, set).Using(PinState::Low)).Once();
 
     // After 100ms, LED should be off for 200ms
     When(Method(ArduinoFake(), millis)).AlwaysReturn(1000 + 100);
     blinker.update();
-    Verify(Method(led_mock, set).Using(PinState::Low)).Once();
+    Verify(Method(led_mock, set).Using(PinState::High)).Once();
 
     // In the middle of the pause
-    When(Method(ArduinoFake(), millis)).AlwaysReturn(1000 + 100 + 100);
+    When(Method(ArduinoFake(), millis)).AlwaysReturn(1000 + 100 + 500);
     blinker.update();
     VerifyNoOtherInvocations(led_mock);
 
-    // After 200ms pause, it should be on again
-    When(Method(ArduinoFake(), millis)).AlwaysReturn(1000 + 100 + 200);
+    // After 1000ms pause, it should be on again
+    When(Method(ArduinoFake(), millis)).AlwaysReturn(1000 + 100 + 1000);
     blinker.update();
-    Verify(Method(led_mock, set).Using(PinState::High)).Once();
+    Verify(Method(led_mock, set).Using(PinState::Low)).Twice();
   }
 }

@@ -21,7 +21,7 @@ TEST_CASE("StoveSupervisor Logic") {
   Fake(Method(ArduinoFake(), millis));
   Fake(Method(ArduinoFake(), delayMicroseconds));
 
-  LevelConfig level_config;
+  ThrottleConfig throttle_config;
   StoveConfig stove_config;
 
   // --- Collaborator Mocks ---
@@ -33,7 +33,7 @@ TEST_CASE("StoveSupervisor Logic") {
 
   StoveSupervisor supervisor(dial_mock.get(), actuator_mock.get(),
                              controller_mock.get(), beeper_mock.get(),
-                             analyzer_mock.get(), stove_config, level_config);
+                             analyzer_mock.get(), stove_config, throttle_config);
 
   auto set_time = [](uint32_t t) {
     When(Method(ArduinoFake(), millis)).AlwaysReturn(t);
@@ -42,8 +42,8 @@ TEST_CASE("StoveSupervisor Logic") {
 
   SUBCASE("Snapshot updates target temp") {
     // 1. Setup Dial to return 50%
-    StoveLevel level_50 = {0.5f, 0};
-    When(Method(dial_mock, getLevel)).AlwaysReturn(level_50);
+    StoveThrottle throttle_50 = {0.5f, 0};
+    When(Method(dial_mock, getThrottle)).AlwaysReturn(throttle_50);
 
     // 2. Expect Controller update
     Fake(Method(controller_mock, setTargetTemp));
@@ -63,18 +63,18 @@ TEST_CASE("StoveSupervisor Logic") {
     set_time(1000 + stove_config.data_timeout_ms + 100);
 
     // 2. Expect Safety Shutdown
-    StoveLevel captured_level = {1.0f, 1}; // Initialize with unsafe value
-    When(Method(actuator_mock, setLevel)).AlwaysDo([&](const StoveLevel &level) {
-      captured_level = level;
+    StoveThrottle captured_throttle = {1.0f, 1}; // Initialize with unsafe value
+    When(Method(actuator_mock, setThrottle)).AlwaysDo([&](const StoveThrottle &throttle) {
+      captured_throttle = throttle;
     });
     Fake(Method(beeper_mock, beep));
     Fake(Method(controller_mock, getLevel)); // Called but result ignored for safety
-    When(Method(dial_mock, getLevel)).AlwaysReturn(StoveLevel{});
+    When(Method(dial_mock, getThrottle)).AlwaysReturn(StoveThrottle{});
 
     supervisor.update();
 
     // Verify Actuator set to 0
-    CHECK(captured_level.base == 0.0f);
+    CHECK(captured_throttle.base == 0.0f);
 
     // Verify Alarm Beep (time aligned)
     set_time(20000);
@@ -84,16 +84,16 @@ TEST_CASE("StoveSupervisor Logic") {
 
   SUBCASE("PID integration and clamping") {
     // 1. Dial at 50%
-    StoveLevel level_50 = {0.5f, 0};
-    When(Method(dial_mock, getLevel)).AlwaysReturn(level_50);
+    StoveThrottle throttle_50 = {0.5f, 0};
+    When(Method(dial_mock, getThrottle)).AlwaysReturn(throttle_50);
 
     // 2. PID Output High (1.0)
     When(Method(controller_mock, getLevel)).AlwaysReturn(1.0f);
     When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(0); // Fresh data
 
-    StoveLevel captured_level = {};
-    When(Method(actuator_mock, setLevel)).AlwaysDo([&](const StoveLevel &l) {
-      captured_level = l;
+    StoveThrottle captured_throttle = {};
+    When(Method(actuator_mock, setThrottle)).AlwaysDo([&](const StoveThrottle &t) {
+      captured_throttle = t;
     });
 
     supervisor.update();
@@ -102,6 +102,6 @@ TEST_CASE("StoveSupervisor Logic") {
     // Base power ratio 0.8. PID 1.0.
     // Boost level = (1.0 - 0.8) / (1.0 - 0.8) = 1.0.
     // Num boosts = 2. Result = 2.
-    CHECK(captured_level.boost == 2);
+    CHECK(captured_throttle.boost == 2);
   }
 }

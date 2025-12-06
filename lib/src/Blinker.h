@@ -2,10 +2,11 @@
 
 #include "DigitalWritePin.h"
 #include <cstdint>
+#include <sys/types.h>
 
 class Blinker {
 public:
-  enum class Signal {
+  enum class Signal : uint8_t {
     NONE,
     ONCE,
     REPEAT,
@@ -19,6 +20,6 @@ public:
 private:
   DigitalWritePin &led_;
 
-  uint32_t step_ = 0;
+  uint8_t step_ = 0;
   uint32_t next_step_time_ms_ = 0;
 };

@@ -1,55 +1,40 @@
 #include "Blinker.h"
 #include "DigitalWritePin.h"
 #include <cstdint>
+#include <iterator>
 
 extern "C" uint32_t millis();
 
 Blinker::Blinker(DigitalWritePin &led) : led_(led) {}
 
 void Blinker::blink(Signal signal) {
-  static constexpr uint32_t FIRST_STEPS[] = {0, 1, 3};
-  step_ = FIRST_STEPS[static_cast<uint32_t>(signal)];
+  step_ = static_cast<uint8_t>(signal);
   next_step_time_ms_ = millis();
 }
 
 void Blinker::update() {
-  if (millis() < next_step_time_ms_) {
-    return;
-  }
 
   static constexpr struct {
-    union {
-      PinState state;
-      uint8_t step;
-    };
-    uint16_t duration;
-  } BLINKER_STEPS[] = {
+    uint16_t duration_ms;
+    PinState pin_state;
+    uint8_t next_step;
+  } STATES[] = {
       // None
-      {{.step = 0}, 0},
+      {0, PinState::High, 4},
       // Once
-      {PinState::Low, 100},
-      {{.step = 0}, 0},
+      {100, PinState::Low, 0},
       // Repeat
-      {PinState::Low, 100},
-      {PinState::High, 1000},
-      {{.step = 3}, 0},
+      {100, PinState::Low, 3},
+      {1000, PinState::High, 2},
   };
 
-  auto step = BLINKER_STEPS[step_];
-
-  if (step.duration > 0) {
-    led_.set(step.state);
-  } else {
-    led_.set(PinState::High);
-  }
-  if (step_ == 0) {
+  if (step_ >= std::size(STATES) || millis() < next_step_time_ms_) {
     return;
   }
-  next_step_time_ms_ = millis() + step.duration;
 
-  ++step_;
-  step = BLINKER_STEPS[step_];
-  if (step.duration == 0) {
-    step_ = step.step;
-  }
+  auto state = STATES[step_];
+
+  led_.set(state.pin_state);
+  step_ = state.next_step;
+  next_step_time_ms_ = millis() + state.duration_ms;
 }

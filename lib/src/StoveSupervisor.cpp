@@ -8,14 +8,14 @@ StoveSupervisor::StoveSupervisor(StoveDial &dial, StoveActuator &actuator,
                                  ThermalController &controller, Beeper &beeper,
                                  const TrendAnalyzer &analyzer,
                                  const StoveConfig &stove_config,
-                                 const LevelConfig &level_config)
+                                 const ThrottleConfig &throttle_config)
     : dial_(dial), actuator_(actuator), controller_(controller),
       beeper_(beeper), analyzer_(analyzer), stove_config_(stove_config),
-      level_config_(level_config) {}
+      throttle_config_(throttle_config) {}
 
 void StoveSupervisor::takeSnapshot() {
   // Read current knob position (0.0 to 1.0)
-  float knob_pos = dial_.getLevel().base;
+  float knob_pos = dial_.getThrottle().base;
 
   // Map to Temp Range
   float target_temp = stove_config_.min_temp_c +
@@ -31,7 +31,7 @@ void StoveSupervisor::update() {
 
   if (analyzer_.getLastUpdateMs() > 0 &&
       now - analyzer_.getLastUpdateMs() > stove_config_.data_timeout_ms) {
-    actuator_.setLevel(StoveLevel{});
+    actuator_.setThrottle(StoveThrottle{});
     // Alarm beep every second
     if (now % 1000 < 100) {
       beeper_.beep(Beeper::Signal::ERROR);
@@ -41,13 +41,13 @@ void StoveSupervisor::update() {
 
   float pid_out = controller_.getLevel();
 
-  StoveLevel output = dial_.getLevel();
+  StoveThrottle output = dial_.getThrottle();
   output.base = std::min(output.base, pid_out / stove_config_.base_power_ratio);
 
   float boost_level = std::max(0.0f, (pid_out - stove_config_.base_power_ratio) /
                                          (1.0f - stove_config_.base_power_ratio));
-  uint32_t pid_boost = std::ceil(boost_level * level_config_.num_boosts);
-  output.boost = std::clamp(pid_boost, output.boost, level_config_.num_boosts);
+  uint32_t pid_boost = std::ceil(boost_level * throttle_config_.num_boosts);
+  output.boost = std::clamp(pid_boost, output.boost, throttle_config_.num_boosts);
 
-  actuator_.setLevel(output);
+  actuator_.setThrottle(output);
 }
