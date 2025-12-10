@@ -77,7 +77,7 @@ TEST_CASE("StoveSupervisor Logic") {
     CHECK(captured_throttle.base == 0.0f);
 
     // Verify Alarm Beep (time aligned)
-    set_time(20000);
+    set_time(70000);
     supervisor.update();
     Verify(Method(beeper_mock, beep).Using(Beeper::Signal::ERROR)).AtLeast(1);
   }

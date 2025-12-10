@@ -1,4 +1,5 @@
 #include "StoveDial.h"
+#include "StoveThrottle.h"
 #include <algorithm>
 #include <cassert>
 #include <cmath>

@@ -1,5 +1,6 @@
 #include "BleTemperatureClient.h"
 #include "Streaming.h"
+#include "TeePrint.h"
 #include <Arduino.h>
 #include <algorithm>
 #include <cmath>
@@ -53,7 +54,7 @@ void BleTemperatureClient::notifyCallback(uint8_t *data, uint16_t len) {
 
   float temp = decodeIEEE11073(data);
 
-  Serial << "BleTemperatureClient::notifyCallback(" << temp << "°C)" << endl;
+  Log << "BleTemperatureClient::notifyCallback(" << temp << "°C)" << endl;
 
   analyzer_.addReading(temp, millis());
 }

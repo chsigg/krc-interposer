@@ -10,15 +10,14 @@ struct StoveConfig {
   float min_temp_c = 20.0f;
   float max_temp_c = 120.0f;
   float base_power_ratio = 0.8f;
-  uint32_t data_timeout_ms = 10000;
+  uint32_t data_timeout_ms = 60 * 1000; // 1 minute
 };
 
 class StoveSupervisor {
 public:
   StoveSupervisor(StoveDial &dial, StoveActuator &actuator,
                   ThermalController &controller, Beeper &beeper,
-                  const TrendAnalyzer &analyzer,
-                  const StoveConfig &config,
+                  const TrendAnalyzer &analyzer, const StoveConfig &config,
                   const ThrottleConfig &throttle_config);
 
   void update();

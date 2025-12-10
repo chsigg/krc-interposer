@@ -14,12 +14,26 @@
 #include "StoveDial.h"
 #include "StoveSupervisor.h"
 #include "Streaming.h"
+#include "TeePrint.h"
 #include "ThermalController.h"
 #include "TrendAnalyzer.h"
 
 void delayUs(uint32_t us) { delayMicroseconds(us); }
 
+/* TODOs
+- turn off radio when stove dial is 0
+- when stove dial is turned on, turn on radio
+- ignore if lid is available within first 3 seconds
+- initial connect takes snapshot, reconnect doesn't
+- use shutter trigger to force snapshot
+*/
+
 // --- Hardware Instantiation ---
+
+// BLE UART Service
+BLEUart bleuart;
+// Tee stream for logging to Serial and BLE
+TeePrint Log(Serial, bleuart);
 
 // Actuator Pins
 ArduinoDigitalWritePin inc(D1), ud(D2), cs(D3);
@@ -56,8 +70,31 @@ void setup() {
   while (!Serial && millis() < 5000) {
     delay(10);
   }
-  Serial << "Stove Controller Starting..." << endl;
+  Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
+
+  Log << "KRC Interceptor Starting..." << endl;
+
+  // Initialize existing BLE Central clients
   BleClient::begin();
+
+  // --- BLE Peripheral/UART Setup ---
+  // Start the BLE UART service
+  bleuart.bufferTXD(true);
+  bleuart.begin();
+
+  // Setup the advertising packet
+  Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
+  Bluefruit.Advertising.addTxPower();
+  // Include the BLE UART (NUS) service UUID
+  Bluefruit.Advertising.addService(bleuart);
+  Bluefruit.Advertising.addName();
+
+  // Configure and start advertising
+  Bluefruit.Advertising.restartOnDisconnect(true);
+  Bluefruit.Advertising.setInterval(32, 244); // 20ms, 152.5ms
+  Bluefruit.Advertising.setFastTimeout(30);   // 30 seconds
+  Bluefruit.Advertising.start(0);             // 0 = Advertise forever
+
   blinker.blink(Blinker::Signal::REPEAT);
 }
 
@@ -75,19 +112,20 @@ void loop() {
   actuator.update();
 
   static uint32_t last_log = 0;
-  if (millis() - last_log > 10000) {
+  if (millis() - last_log > 1000) {
     last_log = millis();
 
-    Serial << endl;
-    Serial << "Analyzer: " << analyzer.getValue(millis()) << "°C "
-           << analyzer.getSlope() << "°C/ms " << endl;
-    Serial << "Dial: throttle " << dial.getThrottle().base << ", boost "
-           << dial.getThrottle().boost << endl;
-    Serial << "Controller: level " << controller.getLevel()
-           << (controller.isLidOpen() ? " (lid open)" : "") << endl;
-    Serial << "Actuator: throttle " << actuator.getThrottle().base << ", boost "
-           << actuator.getThrottle().boost << endl;
+    Log << "Analyzer: " << analyzer.getValue(last_log) << "°C "
+        << analyzer.getSlope() << "°C/ms " << endl;
+    Log << "Dial: throttle " << dial.getThrottle().base << ", boost "
+        << dial.getThrottle().boost << endl;
+    Log << "Controller: level " << controller.getLevel()
+        << (controller.isLidOpen() ? " (lid open)" : "") << endl;
+    Log << "Actuator: throttle " << actuator.getThrottle().base << ", boost "
+        << actuator.getThrottle().boost << endl;
+    Log << endl;
   }
 
+  bleuart.flushTXD();
   delay(10);
 }
