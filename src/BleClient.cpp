@@ -1,6 +1,5 @@
 #include "BleClient.h"
-#include "Streaming.h"
-#include "TeePrint.h"
+#include "Logger.h"
 #include <Arduino.h>
 #include <cassert>
 #include <cstddef>
@@ -36,7 +35,7 @@ bool BleClient::isConnected() const {
 }
 
 void BleClient::begin() {
-  Log << "BleClient::begin()" << endl;
+  Log << "BleClient::begin()\n";
 
   Bluefruit.begin(1, sBleClients.size());
   Bluefruit.setName("KRC Interposer");
@@ -61,7 +60,7 @@ void BleClient::begin() {
 }
 
 void BleClient::startScan() {
-  Log << "BleClient::startScan()" << endl;
+  Log << "BleClient::startScan()\n";
 
   uint8_t count = 0;
   std::array<BLEUuid, sBleClients.size()> uuids;
@@ -92,8 +91,18 @@ void BleClient::globalScanCallback(ble_gap_evt_adv_report_t *report) {
   }
 
   Log << "BleClient::globalScanCallback(";
-  Log.printBufferReverse(report->peer_addr.addr, 6, ':');
-  Log << ")" << endl;
+    for (int i = 5; i >= 0; --i) {
+    char hex[3];
+    hex[2] = 0;
+    uint8_t byte = report->peer_addr.addr[i];
+    hex[0] = "0123456789ABCDEF"[byte >> 4];
+    hex[1] = "0123456789ABCDEF"[byte & 0x0F];
+    Log << hex;
+    if (i > 0) {
+      Log << ":";
+    }
+  }
+  Log << ")\n";
 
   for (auto client : sBleClients) {
     if (client == nullptr) {
@@ -105,17 +114,17 @@ void BleClient::globalScanCallback(ble_gap_evt_adv_report_t *report) {
     }
 
     if (client->isConnected()) {
-      Log << "  Already connected" << endl;
+      Log << "  Already connected\n";
       continue;
     }
 
-    Log << "  Connecting to 0x" << client->service_.uuid.toString() << endl;
+    Log << "  Connecting to 0x" << client->service_.uuid.toString().c_str() << "\n";
     Bluefruit.Central.connect(report);
 
     return;
   }
 
-  Log << "  Resuming scanner" << endl;
+  Log << "  Resuming scanner\n";
   Bluefruit.Scanner.resume();
 }
 
@@ -123,13 +132,13 @@ void BleClient::globalConnectCallback(uint16_t conn_handle) {
 
   BLEConnection *conn = Bluefruit.Connection(conn_handle);
   if (!conn) {
-    Log << "Failed to get connection" << endl;
+    Log << "Failed to get connection\n";
     return;
   }
 
   std::array<char, 32> name = {};
   conn->getPeerName(name.data(), name.size() - 1);
-  Log << "BleClient::globalConnectCallback(" << name.data() << ")" << endl;
+  Log << "BleClient::globalConnectCallback(" << name.data() << ")\n";
 
   for (auto client : sBleClients) {
     if (client == nullptr) {
@@ -141,21 +150,21 @@ void BleClient::globalConnectCallback(uint16_t conn_handle) {
     }
 
     if (!client->connectCallback(name.data())) {
-      Log << "  Refused to connect" << endl;
+      Log << "  Refused to connect\n";
       break;
     }
 
     if (!client->char_.discover()) {
-      Log << "  Failed to discover characteristic" << endl;
+      Log << "  Failed to discover characteristic\n";
       break;
     }
 
     if (!client->char_.enableNotify()) {
-      Log << "  Failed to enable notifications" << endl;
+      Log << "  Failed to enable notifications\n";
       break;
     }
 
-    Log << "  Connected" << endl;
+    Log << "  Connected\n";
     startScan();
     return;
   }
@@ -168,7 +177,7 @@ void BleClient::globalConnectCallback(uint16_t conn_handle) {
 
 void BleClient::globalDisconnectCallback(uint16_t conn_handle, uint8_t reason) {
   Log << "BleClient::globalDisconnectCallback(/*handle=*/" << conn_handle
-         << ", /*reason=*/" << reason << ")" << endl;
+         << ", /*reason=*/" << reason << ")\n";
 
   for (auto client : sBleClients) {
     if (client == nullptr) {

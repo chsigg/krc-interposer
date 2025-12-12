@@ -1,4 +1,5 @@
 #include "DigiPot.h"
+#include "Logger.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
@@ -18,6 +19,8 @@ void DigiPot::setPosition(float position) {
   if (step == current_step_) {
     return;
   }
+
+  Log << "DigiPot::setPosition(" << position << ")\n";
 
   pulse(step > current_step_, std::abs(step - current_step_));
   current_step_ = step;

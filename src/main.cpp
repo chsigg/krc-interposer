@@ -6,6 +6,7 @@
 #include "ArduinoAnalogReadPin.h"
 #include "ArduinoBuzzer.h"
 #include "ArduinoDigitalWritePin.h"
+#include "ArduinoLogger.h"
 #include "Beeper.h"
 #include "BleShutterClient.h"
 #include "BleTemperatureClient.h"
@@ -14,7 +15,6 @@
 #include "StoveDial.h"
 #include "StoveSupervisor.h"
 #include "Streaming.h"
-#include "TeePrint.h"
 #include "ThermalController.h"
 #include "TrendAnalyzer.h"
 
@@ -33,7 +33,8 @@ void delayUs(uint32_t us) { delayMicroseconds(us); }
 // BLE UART Service
 BLEUart bleuart;
 // Tee stream for logging to Serial and BLE
-TeePrint Log(Serial, bleuart);
+ArduinoLogger logger(Serial, bleuart);
+Logger &Log = logger;
 
 // Actuator Pins
 ArduinoDigitalWritePin inc(D1), ud(D2), cs(D3);
@@ -72,7 +73,8 @@ void setup() {
   }
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
 
-  Log << "KRC Interceptor Starting..." << endl;
+  Log << "KRC Interceptor Starting..."
+      << "\n";
 
   // Initialize existing BLE Central clients
   BleClient::begin();
@@ -116,14 +118,15 @@ void loop() {
     last_log = millis();
 
     Log << "Analyzer: " << analyzer.getValue(last_log) << "°C "
-        << analyzer.getSlope() << "°C/ms " << endl;
+        << analyzer.getSlope() << "°C/ms "
+        << "\n";
     Log << "Dial: throttle " << dial.getThrottle().base << ", boost "
-        << dial.getThrottle().boost << endl;
+        << dial.getThrottle().boost << "\n";
     Log << "Controller: level " << controller.getLevel()
-        << (controller.isLidOpen() ? " (lid open)" : "") << endl;
+        << (controller.isLidOpen() ? " (lid open)" : "") << "\n";
     Log << "Actuator: throttle " << actuator.getThrottle().base << ", boost "
-        << actuator.getThrottle().boost << endl;
-    Log << endl;
+        << actuator.getThrottle().boost << "\n";
+    Log << "\n";
   }
 
   bleuart.flushTXD();
