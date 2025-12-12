@@ -17,6 +17,7 @@
 #include "Streaming.h"
 #include "ThermalController.h"
 #include "TrendAnalyzer.h"
+#include "BleTelemetry.h"
 
 void delayUs(uint32_t us) { delayMicroseconds(us); }
 
@@ -63,8 +64,9 @@ StoveSupervisor supervisor(dial, actuator, controller, beeper, analyzer,
                            stove_config, throttle_config);
 
 // BLE Modules
-BleTemperatureClient bleTemp(supervisor, analyzer);
-BleShutterClient bleShutter(supervisor);
+BleTemperatureClient ble_temperature_client(supervisor, analyzer);
+BleShutterClient ble_shutter_client(supervisor);
+BleTelemetry ble_telemetry(bleuart, controller, analyzer);
 
 void setup() {
   Serial.begin(115200);
@@ -79,23 +81,8 @@ void setup() {
   // Initialize existing BLE Central clients
   BleClient::begin();
 
-  // --- BLE Peripheral/UART Setup ---
-  // Start the BLE UART service
-  bleuart.bufferTXD(true);
-  bleuart.begin();
-
-  // Setup the advertising packet
-  Bluefruit.Advertising.addFlags(BLE_GAP_ADV_FLAGS_LE_ONLY_GENERAL_DISC_MODE);
-  Bluefruit.Advertising.addTxPower();
-  // Include the BLE UART (NUS) service UUID
-  Bluefruit.Advertising.addService(bleuart);
-  Bluefruit.Advertising.addName();
-
-  // Configure and start advertising
-  Bluefruit.Advertising.restartOnDisconnect(true);
-  Bluefruit.Advertising.setInterval(32, 244); // 20ms, 152.5ms
-  Bluefruit.Advertising.setFastTimeout(30);   // 30 seconds
-  Bluefruit.Advertising.start(0);             // 0 = Advertise forever
+  // Setup and start advertising
+  ble_telemetry.begin();
 
   blinker.blink(Blinker::Signal::REPEAT);
 }
@@ -129,6 +116,8 @@ void loop() {
     Log << "\n";
   }
 
-  bleuart.flushTXD();
+  // Update BLE telemetry
+  ble_telemetry.update();
+
   delay(10);
 }
