@@ -73,9 +73,10 @@ void setup() {
   while (!Serial && millis() < 5000) {
     delay(10);
   }
-  Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
 
   Log << "KRC Interceptor Starting...\n";
+
+  Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
 
   // Initialize existing BLE Central clients
   BleClient::begin();

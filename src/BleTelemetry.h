@@ -30,8 +30,8 @@ private:
   const TrendAnalyzer &trend_analyzer_;
 
   BLEService service_ = {UUID16_SVC_HEALTH_THERMOMETER};
-  TempMeasurement temp_measurement_ = {this};
-  BLECharacteristic intermediate_temp_ = {UUID16_CHR_INTERMEDIATE_TEMPERATURE};
+  TempMeasurement target_temp_ = {this};
+  BLECharacteristic current_temp_ = {UUID16_CHR_INTERMEDIATE_TEMPERATURE};
 
   uint32_t last_update_ = 0;
 };

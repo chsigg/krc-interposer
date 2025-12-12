@@ -12,16 +12,16 @@ void BleTelemetry::begin() {
   bleuart_.bufferTXD(true);
   bleuart_.begin();
 
-  temp_measurement_.setProperties(CHR_PROPS_NOTIFY | CHR_PROPS_WRITE);
-  temp_measurement_.setPermission(SECMODE_OPEN, SECMODE_OPEN);
-  temp_measurement_.setWriteCallback(tempMeasurementWrittenCallback);
-  temp_measurement_.setMaxLen(5); // 1 byte flags + 4 bytes float
-  temp_measurement_.begin();
+  target_temp_.setProperties(CHR_PROPS_NOTIFY | CHR_PROPS_WRITE);
+  target_temp_.setPermission(SECMODE_OPEN, SECMODE_ENC_NO_MITM);
+  target_temp_.setWriteCallback(tempMeasurementWrittenCallback);
+  target_temp_.setMaxLen(5); // 1 byte flags + 4 bytes float
+  target_temp_.begin();
 
-  intermediate_temp_.setProperties(CHR_PROPS_NOTIFY);
-  intermediate_temp_.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
-  intermediate_temp_.setMaxLen(5); // 1 byte flags + 4 bytes float
-  intermediate_temp_.begin();
+  current_temp_.setProperties(CHR_PROPS_NOTIFY);
+  current_temp_.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
+  current_temp_.setMaxLen(5); // 1 byte flags + 4 bytes float
+  current_temp_.begin();
 
   service_.begin();
 
@@ -53,10 +53,10 @@ void BleTelemetry::update() {
 
   auto controller_temp =
       encodeIEEE11073(thermal_controller_.getTargetTemp());
-  temp_measurement_.notify(controller_temp.data(), controller_temp.size());
+  target_temp_.notify(controller_temp.data(), controller_temp.size());
 
   auto trend_temp = encodeIEEE11073(trend_analyzer_.getValue(millis()));
-  intermediate_temp_.notify(trend_temp.data(), trend_temp.size());
+  current_temp_.notify(trend_temp.data(), trend_temp.size());
 }
 
 void BleTelemetry::tempMeasurementWrittenCallback(uint16_t conn_hdl,
