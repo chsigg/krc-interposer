@@ -14,19 +14,24 @@ DigiPot::DigiPot(const DigitalWritePin &inc, const DigitalWritePin &ud,
 }
 
 void DigiPot::setPosition(float position) {
-  int32_t step = std::lround(std::clamp(position, 0.0f, 1.0f) * (NUM_STEPS - 1));
+  int32_t step =
+      std::lround(std::clamp(position, 0.0f, 1.0f) * (NUM_STEPS - 1));
 
   if (step == current_step_) {
     return;
   }
 
-  Log << "DigiPot::setPosition(" << position << ")\n";
+  if (std::abs(step - current_step_) > 5) {
+    Log << "DigiPot::setPosition(" << position << ")\n";
+  }
 
   pulse(step > current_step_, std::abs(step - current_step_));
   current_step_ = step;
 }
 
-float DigiPot::getPosition() const { return current_step_ / (NUM_STEPS - 1.0f); }
+float DigiPot::getPosition() const {
+  return current_step_ / (NUM_STEPS - 1.0f);
+}
 
 void DigiPot::pulse(bool up, int32_t count) {
   ud_.set(up ? PinState::High : PinState::Low);

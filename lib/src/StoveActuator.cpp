@@ -7,8 +7,11 @@ StoveActuator::StoveActuator(DigiPot &pot, const ThrottleConfig &config)
     : pot_(pot), config_(config) {}
 
 void StoveActuator::setThrottle(const StoveThrottle &throttle) {
-  Log << "StoveActuator::setThrottle(/*base=*/" << throttle.base << ", /*boost=*/" << throttle.boost
-      << ")\n";
+  if (std::abs(throttle.base - target_throttle_.base) > 0.05f ||
+      throttle.boost != target_throttle_.boost) {
+    Log << "StoveActuator::setThrottle(/*base=*/" << throttle.base
+        << ", /*boost=*/" << throttle.boost << ")\n";
+  }
   target_throttle_ = throttle;
 }
 
