@@ -17,7 +17,7 @@ public:
   void update();
 
   virtual float getTargetTemp() const { return target_temp_; }
-  virtual void setTargetTemp(float temp) { target_temp_ = temp; }
+  virtual void setTargetTemp(float temp);
   virtual float getLevel() const { return level_; }
   bool isLidOpen() const { return lid_open_; }
 

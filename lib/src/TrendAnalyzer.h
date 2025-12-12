@@ -10,7 +10,7 @@ class TrendAnalyzer {
   };
 
 public:
-  void addReading(float value, uint32_t time);
+  void addReading(float value, uint32_t time_ms);
 
   float getValue(uint32_t time) const {
     return (time - history_[0].time) * slope_ + intercept_;

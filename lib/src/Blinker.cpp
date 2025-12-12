@@ -1,5 +1,6 @@
 #include "Blinker.h"
 #include "DigitalWritePin.h"
+#include "Logger.h"
 #include <cstdint>
 #include <iterator>
 
@@ -8,6 +9,7 @@ extern "C" uint32_t millis();
 Blinker::Blinker(DigitalWritePin &led) : led_(led) {}
 
 void Blinker::blink(Signal signal) {
+  Log << "Blinker::blink(" << static_cast<uint32_t>(signal) << ")\n";
   step_ = static_cast<uint8_t>(signal);
   next_step_time_ms_ = millis();
 }

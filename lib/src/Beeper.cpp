@@ -1,4 +1,5 @@
 #include "Beeper.h"
+#include "Logger.h"
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
@@ -8,6 +9,7 @@ extern "C" uint32_t millis();
 Beeper::Beeper(Buzzer &buzzer) : buzzer_(buzzer) {}
 
 void Beeper::beep(Signal signal) {
+  Log << "Beeper::beep(" << static_cast<uint32_t>(signal) << ")\n";
   step_ = static_cast<uint32_t>(signal);
   next_step_time_ms_ = millis();
 }

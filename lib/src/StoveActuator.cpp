@@ -1,10 +1,16 @@
 #include "StoveActuator.h"
+#include "Logger.h"
+#include "sfloat.h"
 #include <algorithm>
 
 StoveActuator::StoveActuator(DigiPot &pot, const ThrottleConfig &config)
     : pot_(pot), config_(config) {}
 
-void StoveActuator::setThrottle(const StoveThrottle &throttle) { target_throttle_ = throttle; }
+void StoveActuator::setThrottle(const StoveThrottle &throttle) {
+  Log << "StoveActuator::setThrottle(/*base=*/" << throttle.base << ", /*boost=*/" << throttle.boost
+      << ")\n";
+  target_throttle_ = throttle;
+}
 
 void StoveActuator::update() {
   if (target_throttle_.boost < current_boost_) {

@@ -33,7 +33,7 @@ void StoveDial::update() {
   }
 
   if (reading < config_.boost) {
-    boost_armed_ = true;
+      boost_armed_ = true;
     return;
   }
 

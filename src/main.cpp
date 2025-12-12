@@ -75,8 +75,7 @@ void setup() {
   }
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
 
-  Log << "KRC Interceptor Starting..."
-      << "\n";
+  Log << "KRC Interceptor Starting...\n";
 
   // Initialize existing BLE Central clients
   BleClient::begin();
@@ -105,15 +104,13 @@ void loop() {
     last_log = millis();
 
     Log << "Analyzer: " << analyzer.getValue(last_log) << "°C "
-        << analyzer.getSlope() << "°C/ms "
-        << "\n";
+        << analyzer.getSlope() << "°C/ms\n";
     Log << "Dial: throttle " << dial.getThrottle().base << ", boost "
         << dial.getThrottle().boost << "\n";
     Log << "Controller: level " << controller.getLevel()
         << (controller.isLidOpen() ? " (lid open)" : "") << "\n";
     Log << "Actuator: throttle " << actuator.getThrottle().base << ", boost "
-        << actuator.getThrottle().boost << "\n";
-    Log << "\n";
+        << actuator.getThrottle().boost << "\n\n";
   }
 
   // Update BLE telemetry

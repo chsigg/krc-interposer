@@ -1,4 +1,5 @@
 #include "StoveSupervisor.h"
+#include "Logger.h"
 #include <algorithm>
 #include <cmath>
 
@@ -18,8 +19,9 @@ void StoveSupervisor::takeSnapshot() {
   float knob_pos = dial_.getThrottle().base;
 
   // Map to Temp Range
-  float target_temp = stove_config_.min_temp_c +
-                      (knob_pos * (stove_config_.max_temp_c - stove_config_.min_temp_c));
+  float target_temp =
+      stove_config_.min_temp_c +
+      (knob_pos * (stove_config_.max_temp_c - stove_config_.min_temp_c));
 
   controller_.setTargetTemp(target_temp);
 
@@ -31,11 +33,9 @@ void StoveSupervisor::update() {
 
   if (analyzer_.getLastUpdateMs() > 0 &&
       now - analyzer_.getLastUpdateMs() > stove_config_.data_timeout_ms) {
+    Log << "StoveSupervisor::update() data timeout\n";
     actuator_.setThrottle(StoveThrottle{});
-    // Alarm beep every second
-    if (now % 1000 < 100) {
-      beeper_.beep(Beeper::Signal::ERROR);
-    }
+    beeper_.beep(Beeper::Signal::ERROR);
     return;
   }
 
@@ -44,10 +44,12 @@ void StoveSupervisor::update() {
   StoveThrottle output = dial_.getThrottle();
   output.base = std::min(output.base, pid_out / stove_config_.base_power_ratio);
 
-  float boost_level = std::max(0.0f, (pid_out - stove_config_.base_power_ratio) /
-                                         (1.0f - stove_config_.base_power_ratio));
+  float boost_level =
+      std::max(0.0f, (pid_out - stove_config_.base_power_ratio) /
+                         (1.0f - stove_config_.base_power_ratio));
   uint32_t pid_boost = std::ceil(boost_level * throttle_config_.num_boosts);
-  output.boost = std::clamp(pid_boost, output.boost, throttle_config_.num_boosts);
+  output.boost =
+      std::clamp(pid_boost, output.boost, throttle_config_.num_boosts);
 
   actuator_.setThrottle(output);
 }

@@ -1,4 +1,5 @@
 #include "ThermalController.h"
+#include "Logger.h"
 #include <algorithm>
 #include <cmath>
 
@@ -7,12 +8,17 @@ extern "C" uint32_t millis();
 ThermalController::ThermalController(const TrendAnalyzer &analyzer, const ThermalConfig &config)
     : analyzer_(analyzer), config_(config), target_temp_(config.ambient_temp) {}
 
+void ThermalController::setTargetTemp(float temp) {
+  Log << "ThermalController::setTargetTemp(" << temp << ")\n";
+  target_temp_ = temp;
+}
+
 void ThermalController::update() {
   uint32_t current_time_ms = millis();
   float slope = analyzer_.getSlope();
 
   if (slope < -config_.lid_open_threshold) {
-    lid_open_ = true;
+      lid_open_ = true;
   }
 
   if (lid_open_) {
@@ -20,6 +26,7 @@ void ThermalController::update() {
     if (slope < config_.lid_open_threshold) {
       return;
     }
+    Log << "ThermalController lid closed\n";
     lid_open_ = false;
   }
 

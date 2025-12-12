@@ -1,10 +1,14 @@
 #include "TrendAnalyzer.h"
+#include "Logger.h"
+#include "sfloat.h"
 #include <algorithm>
 #include <cmath>
 #include <limits>
 
-void TrendAnalyzer::addReading(float value, uint32_t time) {
-  Reading reading = {value, time};
+void TrendAnalyzer::addReading(float value, uint32_t time_ms) {
+  Log << "TrendAnalyzer::addReading(/*value=*/" << value << ", /*time_ms=*/"
+      << time_ms << ")\n";
+  Reading reading = {value, time_ms};
   auto begin = history_.begin();
   auto end = begin + count_;
   auto comp = [](const Reading &a, const Reading &b) {
