@@ -1,33 +1,28 @@
 #include "BleTelemetry.h"
+#include "sfloat.h"
 #include <Arduino.h>
 
-// Health Thermometer Service
-#define BLE_UUID_HEALTH_THERMOMETER_SERVICE "1809"
-#define BLE_UUID_TEMPERATURE_MEASUREMENT_CHAR "2A1C"
-#define BLE_UUID_INTERMEDIATE_TEMPERATURE_CHAR "2A1E"
-
-BleTelemetry::BleTelemetry(BLEUart &uart, ThermalController &thermalController,
-                           TrendAnalyzer &trendAnalyzer)
-    : bleuart_(uart), thermal_controller_(thermalController),
-      trend_analyzer_(trendAnalyzer),
-      service_(BLE_UUID_HEALTH_THERMOMETER_SERVICE),
-      temp_measurement_(BLE_UUID_TEMPERATURE_MEASUREMENT_CHAR),
-      intermediate_temp_(BLE_UUID_INTERMEDIATE_TEMPERATURE_CHAR),
-      last_update_(0) {}
-
-static void initializeCharacteristic(BLECharacteristic &characteristic) {
-  characteristic.setProperties(CHR_PROPS_NOTIFY);
-  characteristic.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
-  characteristic.setMaxLen(5); // 1 byte flags + 4 bytes float
-  characteristic.begin();
-}
+BleTelemetry::BleTelemetry(BLEUart &blueuart,
+                           ThermalController &thermal_controller,
+                           const TrendAnalyzer &trend_analyzer)
+    : bleuart_(blueuart), thermal_controller_(thermal_controller),
+      trend_analyzer_(trend_analyzer) {}
 
 void BleTelemetry::begin() {
   bleuart_.bufferTXD(true);
   bleuart_.begin();
 
-  initializeCharacteristic(temp_measurement_);
-  initializeCharacteristic(intermediate_temp_);
+  temp_measurement_.setProperties(CHR_PROPS_NOTIFY | CHR_PROPS_WRITE);
+  temp_measurement_.setPermission(SECMODE_OPEN, SECMODE_OPEN);
+  temp_measurement_.setWriteCallback(tempMeasurementWrittenCallback);
+  temp_measurement_.setMaxLen(5); // 1 byte flags + 4 bytes float
+  temp_measurement_.begin();
+
+  intermediate_temp_.setProperties(CHR_PROPS_NOTIFY);
+  intermediate_temp_.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
+  intermediate_temp_.setMaxLen(5); // 1 byte flags + 4 bytes float
+  intermediate_temp_.begin();
+
   service_.begin();
 
   Bluefruit.ScanResponse.addName();
@@ -43,20 +38,6 @@ void BleTelemetry::begin() {
   Bluefruit.Advertising.start(0);
 }
 
-static std::array<uint8_t, 5> encodeIEEE11073(float temp) {
-  int8_t exponent = -2;
-  int32_t mantissa = (int32_t)round(temp * 100.0f);
-
-  std::array<uint8_t, 5> result;
-  result[0] = 0x0; // Flag byte: Celsius
-  result[1] = (uint8_t)(mantissa & 0xFF);
-  result[2] = (uint8_t)((mantissa >> 8) & 0xFF);
-  result[3] = (uint8_t)((mantissa >> 16) & 0xFF);
-  result[4] = (uint8_t)exponent;
-
-  return result;
-}
-
 void BleTelemetry::update() {
 
   if (!Bluefruit.connected()) {
@@ -70,9 +51,22 @@ void BleTelemetry::update() {
   }
   last_update_ = millis();
 
-  auto controller_temp = encodeIEEE11073(thermal_controller_.getTargetTemp());
+  auto controller_temp =
+      encodeIEEE11073(thermal_controller_.getTargetTemp());
   temp_measurement_.notify(controller_temp.data(), controller_temp.size());
 
   auto trend_temp = encodeIEEE11073(trend_analyzer_.getValue(millis()));
   intermediate_temp_.notify(trend_temp.data(), trend_temp.size());
+}
+
+void BleTelemetry::tempMeasurementWrittenCallback(uint16_t conn_hdl,
+                                                  BLECharacteristic *chr,
+                                                  uint8_t *data, uint16_t len) {
+  if (len < 5) {
+    return; // Flags (1) + Float (4) minimum
+  }
+
+  float temp = decodeIEEE11073(data, len);
+  static_cast<TempMeasurement *>(chr)
+      ->telemetry->thermal_controller_.setTargetTemp(temp);
 }

@@ -1,26 +1,39 @@
 #ifndef BLETELEMETRY_H_
 #define BLETELEMETRY_H_
 
-#include <bluefruit.h>
 #include "ThermalController.h"
 #include "TrendAnalyzer.h"
+#include <bluefruit.h>
 
 class BleTelemetry {
- public:
-  BleTelemetry(BLEUart& uart, ThermalController& thermalController, TrendAnalyzer& trendAnalyzer);
+
+  class TempMeasurement : public BLECharacteristic {
+  public:
+    TempMeasurement(BleTelemetry *telemetry)
+        : BLECharacteristic(UUID16_CHR_TEMPERATURE_MEASUREMENT),
+          telemetry(telemetry) {}
+    BleTelemetry *telemetry;
+  };
+
+public:
+  BleTelemetry(BLEUart &bleuart, ThermalController &thermalController,
+               const TrendAnalyzer &trendAnalyzer);
   void begin();
   void update();
 
- private:
-  BLEUart& bleuart_;
-  ThermalController& thermal_controller_;
-  TrendAnalyzer& trend_analyzer_;
+private:
+  static void tempMeasurementWrittenCallback(uint16_t conn_hdl, BLECharacteristic *chr,
+                                      uint8_t *data, uint16_t len);
 
-  BLEService service_;
-  BLECharacteristic temp_measurement_;
-  BLECharacteristic intermediate_temp_;
+  BLEUart &bleuart_;
+  ThermalController &thermal_controller_;
+  const TrendAnalyzer &trend_analyzer_;
 
-  unsigned long last_update_;
+  BLEService service_ = {UUID16_SVC_HEALTH_THERMOMETER};
+  TempMeasurement temp_measurement_ = {this};
+  BLECharacteristic intermediate_temp_ = {UUID16_CHR_INTERMEDIATE_TEMPERATURE};
+
+  uint32_t last_update_ = 0;
 };
 
-#endif  // BLETELEMETRY_H_
+#endif // BLETELEMETRY_H_
