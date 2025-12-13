@@ -91,9 +91,8 @@ void BleClient::globalScanCallback(ble_gap_evt_adv_report_t *report) {
   }
 
   Log << "BleClient::globalScanCallback(";
-    for (int i = 5; i >= 0; --i) {
-    char hex[3];
-    hex[2] = 0;
+  for (int i = 5; i >= 0; --i) {
+    char hex[3] = {};
     uint8_t byte = report->peer_addr.addr[i];
     hex[0] = "0123456789ABCDEF"[byte >> 4];
     hex[1] = "0123456789ABCDEF"[byte & 0x0F];
@@ -118,7 +117,8 @@ void BleClient::globalScanCallback(ble_gap_evt_adv_report_t *report) {
       continue;
     }
 
-    Log << "  Connecting to 0x" << client->service_.uuid.toString().c_str() << "\n";
+    Log << "  Connecting to 0x" << client->service_.uuid.toString().c_str()
+        << "\n";
     Bluefruit.Central.connect(report);
 
     return;
@@ -177,7 +177,7 @@ void BleClient::globalConnectCallback(uint16_t conn_handle) {
 
 void BleClient::globalDisconnectCallback(uint16_t conn_handle, uint8_t reason) {
   Log << "BleClient::globalDisconnectCallback(/*handle=*/" << conn_handle
-         << ", /*reason=*/" << reason << ")\n";
+      << ", /*reason=*/" << reason << ")\n";
 
   for (auto client : sBleClients) {
     if (client == nullptr) {

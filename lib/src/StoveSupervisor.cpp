@@ -33,10 +33,18 @@ void StoveSupervisor::update() {
 
   if (analyzer_.getLastUpdateMs() > 0 &&
       now - analyzer_.getLastUpdateMs() > stove_config_.data_timeout_ms) {
-    Log << "StoveSupervisor::update() data timeout\n";
+    if (!is_analyzer_timed_out_) {
+      Log << "StoveSupervisor::update() analyzer timed out\n";
+      is_analyzer_timed_out_ = true;
+    }
     actuator_.setThrottle(StoveThrottle{});
     beeper_.beep(Beeper::Signal::ERROR);
     return;
+  }
+
+  if (is_analyzer_timed_out_) {
+    Log << "StoveSupervisor::update() analyzer recovered\n";
+    is_analyzer_timed_out_ = false;
   }
 
   float pid_out = controller_.getLevel();

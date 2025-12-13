@@ -33,4 +33,5 @@ private:
   const TrendAnalyzer &analyzer_;
   const StoveConfig stove_config_;
   const ThrottleConfig throttle_config_;
+  bool is_analyzer_timed_out_{true};
 };

@@ -80,10 +80,10 @@ void setup() {
   Bluefruit.Security.setIOCaps(false, false, false);
   Bluefruit.Security.setMITM(false);
 
-  // Initialize existing BLE Central clients
+  // Initialize BLE Central clients
   BleClient::begin();
 
-  // Setup and start advertising
+  // Setup BLE Peripheral and start advertising
   ble_telemetry.begin();
 
   blinker.blink(Blinker::Signal::REPEAT);
@@ -103,7 +103,7 @@ void loop() {
   actuator.update();
 
   static uint32_t last_log = 0;
-  if (millis() - last_log > 1000) {
+  if (millis() - last_log > 60*1000) {
     last_log = millis();
 
     Log << "Analyzer: " << analyzer.getValue(last_log) << "°C "

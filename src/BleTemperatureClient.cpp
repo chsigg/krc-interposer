@@ -16,6 +16,8 @@ BleTemperatureClient::BleTemperatureClient(StoveSupervisor &supervisor,
       supervisor_(supervisor), analyzer_(analyzer) {}
 
 bool BleTemperatureClient::connectCallback(const char *name) {
+  Log << "BleTemperatureClient::connectCallback(" << name << ")\n";
+
   for (const char *supported_name : {"DUROMATIC", "HOTPAN", "FAKEPOT"}) {
     if (strcmp(name, supported_name) != 0) {
       continue;
