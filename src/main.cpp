@@ -77,6 +77,8 @@ void setup() {
   Log << "KRC Interceptor Starting...\n";
 
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
+  Bluefruit.Security.setIOCaps(false, false, false);
+  Bluefruit.Security.setMITM(false);
 
   // Initialize existing BLE Central clients
   BleClient::begin();

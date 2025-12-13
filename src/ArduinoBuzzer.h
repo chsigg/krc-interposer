@@ -18,7 +18,7 @@ public:
   void enable(int32_t frequency_hz) override {
     int16_t period = 8000000 / 2 / frequency_hz;
     // Normal and inverted polarity for channel 0 and 1
-    int16_t sequence[4] = {period, period | 0x8000, 0, 0};
+    int16_t sequence[4] = {period, static_cast<int16_t>(period | 0x8000)};
 
     NRF_PWM0->PSEL.OUT[0] = g_ADigitalPinMap[pin_p_];
     NRF_PWM0->PSEL.OUT[1] = g_ADigitalPinMap[pin_n_];

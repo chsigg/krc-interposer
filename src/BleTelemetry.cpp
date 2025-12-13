@@ -12,18 +12,18 @@ void BleTelemetry::begin() {
   bleuart_.bufferTXD(true);
   bleuart_.begin();
 
+  service_.begin();
+
   target_temp_.setProperties(CHR_PROPS_NOTIFY | CHR_PROPS_WRITE);
   target_temp_.setPermission(SECMODE_OPEN, SECMODE_ENC_NO_MITM);
   target_temp_.setWriteCallback(tempMeasurementWrittenCallback);
-  target_temp_.setMaxLen(5); // 1 byte flags + 4 bytes float
+  target_temp_.setFixedLen(5); // 1 byte flags + 4 bytes float
   target_temp_.begin();
 
   current_temp_.setProperties(CHR_PROPS_NOTIFY);
   current_temp_.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
-  current_temp_.setMaxLen(5); // 1 byte flags + 4 bytes float
+  current_temp_.setFixedLen(5); // 1 byte flags + 4 bytes float
   current_temp_.begin();
-
-  service_.begin();
 
   Bluefruit.ScanResponse.addName();
 
