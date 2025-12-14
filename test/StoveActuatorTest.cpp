@@ -9,6 +9,7 @@ using namespace fakeit;
 TEST_CASE("StoveActuator Logic") {
 
   Fake(Method(ArduinoFake(), delayMicroseconds));
+  Fake(Method(ArduinoFake(), millis));
   Mock<DigiPot> pot_mock;
 
   ThrottleConfig config{.min = 0.1f, .max = 0.8f, .boost = 0.9f, .num_boosts = 2};
@@ -21,6 +22,7 @@ TEST_CASE("StoveActuator Logic") {
 
     // Expect setThrottle to be called with base throttle
     Fake(Method(pot_mock, setPosition));
+    When(Method(ArduinoFake(), millis)).AlwaysReturn(2000);
 
     actuator.update();
 
@@ -34,12 +36,15 @@ TEST_CASE("StoveActuator Logic") {
     // Mock getPosition to return a normal value (<= config.boost)
     When(Method(pot_mock, getPosition)).AlwaysReturn(0.5f);
     Fake(Method(pot_mock, setPosition));
+    When(Method(ArduinoFake(), millis)).AlwaysReturn(10000);
 
     // First update: current_boost (0) < target (2).
     // pot position (0.5) <= config.boost (0.9).
     // Should set pot to 1.0 and increment current_boost to 1.
     actuator.update();
     Verify(Method(pot_mock, setPosition).Using(1.0f)).Exactly(1);
+
+    When(Method(ArduinoFake(), millis)).AlwaysReturn(11001);
 
     // Second update: current_boost (1) < target (2).
     // Should set pot to 1.0 and increment current_boost to 2.
@@ -48,6 +53,7 @@ TEST_CASE("StoveActuator Logic") {
 
     // Third update: current_boost (2) == target (2).
     // Should set pot to target base throttle (0.5).
+    When(Method(ArduinoFake(), millis)).AlwaysReturn(12002);
     actuator.update();
     Verify(Method(pot_mock, setPosition).Using(0.5f)).Exactly(1);
   }
@@ -57,6 +63,7 @@ TEST_CASE("StoveActuator Logic") {
     StoveThrottle throttle{.base = 0.5f, .boost = 1};
     actuator.setThrottle(throttle);
     When(Method(pot_mock, getPosition)).AlwaysReturn(0.5f);
+    When(Method(ArduinoFake(), millis)).AlwaysReturn(10000);
     Fake(Method(pot_mock, setPosition));
 
     actuator.update(); // current_boost becomes 1
@@ -81,6 +88,7 @@ TEST_CASE("StoveActuator Logic") {
     // Mock getPosition to be > config.boost (0.9).
     // This forces the 'else' branch in update().
     When(Method(pot_mock, getPosition)).AlwaysReturn(1.0f);
+    When(Method(ArduinoFake(), millis)).AlwaysReturn(10000);
     Fake(Method(pot_mock, setPosition));
 
     actuator.update();

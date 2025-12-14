@@ -21,7 +21,7 @@ TEST_CASE("StoveSupervisor Logic") {
   Fake(Method(ArduinoFake(), millis));
   Fake(Method(ArduinoFake(), delayMicroseconds));
 
-  ThrottleConfig throttle_config;
+  ThrottleConfig throttle_config{.num_boosts = 2};
   StoveConfig stove_config;
 
   // --- Collaborator Mocks ---
@@ -57,6 +57,14 @@ TEST_CASE("StoveSupervisor Logic") {
   }
 
   SUBCASE("Safety check stale data") {
+    // 0. Establish healthy state to clear timeout flag
+    When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(1000);
+    set_time(1100);
+    When(Method(dial_mock, getThrottle)).AlwaysReturn(StoveThrottle{});
+    When(Method(controller_mock, getLevel)).AlwaysReturn(0.0f);
+    Fake(Method(actuator_mock, setThrottle));
+    supervisor.update();
+
     // 1. Setup Stale Data condition
     // Last update at 1000, current time 1000 + timeout + 100
     When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(1000);
@@ -84,12 +92,13 @@ TEST_CASE("StoveSupervisor Logic") {
 
   SUBCASE("PID integration and clamping") {
     // 1. Dial at 50%
-    StoveThrottle throttle_50 = {0.5f, 0};
-    When(Method(dial_mock, getThrottle)).AlwaysReturn(throttle_50);
+    StoveThrottle throttle_allow_boost = {0.5f, 2};
+    When(Method(dial_mock, getThrottle)).AlwaysReturn(throttle_allow_boost);
 
     // 2. PID Output High (1.0)
     When(Method(controller_mock, getLevel)).AlwaysReturn(1.0f);
-    When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(0); // Fresh data
+    When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(1000); // Fresh data
+    set_time(1000);
 
     StoveThrottle captured_throttle = {};
     When(Method(actuator_mock, setThrottle)).AlwaysDo([&](const StoveThrottle &t) {

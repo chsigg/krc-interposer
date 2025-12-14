@@ -3,6 +3,8 @@
 #include "sfloat.h"
 #include <algorithm>
 
+extern "C" uint32_t millis();
+
 StoveActuator::StoveActuator(DigiPot &pot, const ThrottleConfig &config)
     : pot_(pot), config_(config) {}
 
@@ -23,6 +25,11 @@ void StoveActuator::update() {
     return;
   }
 
+  uint32_t now = millis();
+  if (now - last_boost_change_ms_ < 1000) {
+    return;
+  }
+
   if (target_throttle_.boost == current_boost_) {
     pot_.setPosition(target_throttle_.base);
     return;
@@ -35,4 +42,6 @@ void StoveActuator::update() {
     float above_max_level = config_.max + (config_.boost - config_.max) / 2;
     pot_.setPosition(above_max_level);
   }
+
+  last_boost_change_ms_ = now;
 }

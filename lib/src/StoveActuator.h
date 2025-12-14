@@ -19,4 +19,5 @@ private:
 
     StoveThrottle target_throttle_ = {};
     uint32_t current_boost_ = 0;
+    uint32_t last_boost_change_ms_ = 0;
 };

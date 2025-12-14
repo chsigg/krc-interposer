@@ -32,7 +32,7 @@ void StoveSupervisor::update() {
   uint32_t now = millis();
 
   if (analyzer_.getLastUpdateMs() == 0) {
-    return;  // No data.
+    return; // No data.
   }
 
   if (now - analyzer_.getLastUpdateMs() > stove_config_.data_timeout_ms) {
@@ -59,8 +59,7 @@ void StoveSupervisor::update() {
       std::max(0.0f, (pid_out - stove_config_.base_power_ratio) /
                          (1.0f - stove_config_.base_power_ratio));
   uint32_t pid_boost = std::ceil(boost_level * throttle_config_.num_boosts);
-  output.boost =
-      std::clamp(pid_boost, output.boost, throttle_config_.num_boosts);
+  output.boost = std::min(output.boost, pid_boost);
 
   actuator_.setThrottle(output);
 }
