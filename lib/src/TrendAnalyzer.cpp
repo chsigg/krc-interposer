@@ -7,7 +7,8 @@
 
 void TrendAnalyzer::addReading(float value, uint32_t time_ms) {
   Log << "TrendAnalyzer::addReading(/*value=*/" << value << ", /*time_ms=*/"
-      << time_ms << ")\n";
+      << time_ms << "\n";
+
   Reading reading = {value, time_ms};
   auto begin = history_.begin();
   auto end = begin + count_;
@@ -28,14 +29,17 @@ void TrendAnalyzer::addReading(float value, uint32_t time_ms) {
   std::move_backward(it, end - 1, end);
   *it = reading;
 
-  calculateRegression();
+  const int next_idx =
+      1 - current_result_index_.load(std::memory_order_relaxed);
+  results_[next_idx] = calculateRegression();
+  current_result_index_.store(next_idx, std::memory_order_release);
 }
 
-void TrendAnalyzer::calculateRegression() {
-  if (history_[0].time == history_[count_ - 1].time) {
-    slope_ = 0.0f;
-    intercept_ = history_[0].value;
-    return;
+TrendAnalyzer::AnalysisResult TrendAnalyzer::calculateRegression() const {
+  uint32_t last_update_ms = history_[0].time;
+
+  if (count_ < 2 || last_update_ms == history_[count_ - 1].time) {
+    return {last_update_ms, history_[0].value, 0.0f};
   }
 
   float sum_x = 0.0f;
@@ -44,7 +48,7 @@ void TrendAnalyzer::calculateRegression() {
   float sum_xx = 0.0f;
 
   for (size_t i = 0; i < count_; ++i) {
-    float x = static_cast<int32_t>(history_[i].time - history_[0].time);
+    float x = static_cast<int32_t>(history_[i].time - last_update_ms);
     float y = history_[i].value;
 
     sum_x += x;
@@ -54,6 +58,12 @@ void TrendAnalyzer::calculateRegression() {
   }
 
   float denominator = count_ * sum_xx - sum_x * sum_x;
-  slope_ = (count_ * sum_xy - sum_x * sum_y) / denominator;
-  intercept_ = (sum_y - slope_ * sum_x) / count_;
+  if (std::abs(denominator) < std::numeric_limits<float>::epsilon()) {
+    return {last_update_ms, sum_y / count_, 0.0f};
+  }
+
+  float slope = (count_ * sum_xy - sum_x * sum_y) / denominator;
+  float intercept = (sum_y - slope * sum_x) / count_;
+  return {last_update_ms, intercept, slope};
 }
+

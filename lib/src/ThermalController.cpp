@@ -5,12 +5,17 @@
 
 extern "C" uint32_t millis();
 
-ThermalController::ThermalController(const TrendAnalyzer &analyzer, const ThermalConfig &config)
+ThermalController::ThermalController(const TrendAnalyzer &analyzer,
+                                     const ThermalConfig &config)
     : analyzer_(analyzer), config_(config), target_temp_(config.ambient_temp) {}
+
+float ThermalController::getTargetTemp() const {
+  return target_temp_.load(std::memory_order_relaxed);
+}
 
 void ThermalController::setTargetTemp(float temp) {
   Log << "ThermalController::setTargetTemp(" << temp << ")\n";
-  target_temp_ = temp;
+  target_temp_.store(temp, std::memory_order_relaxed);
 }
 
 void ThermalController::update() {
@@ -18,7 +23,7 @@ void ThermalController::update() {
   float slope = analyzer_.getSlope();
 
   if (slope < -config_.lid_open_threshold) {
-      lid_open_ = true;
+    lid_open_ = true;
   }
 
   if (lid_open_) {
