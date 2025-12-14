@@ -31,8 +31,11 @@ void StoveSupervisor::takeSnapshot() {
 void StoveSupervisor::update() {
   uint32_t now = millis();
 
-  if (analyzer_.getLastUpdateMs() > 0 &&
-      now - analyzer_.getLastUpdateMs() > stove_config_.data_timeout_ms) {
+  if (analyzer_.getLastUpdateMs() == 0) {
+    return;  // No data.
+  }
+
+  if (now - analyzer_.getLastUpdateMs() > stove_config_.data_timeout_ms) {
     if (!is_analyzer_timed_out_) {
       Log << "StoveSupervisor::update() analyzer timed out\n";
       is_analyzer_timed_out_ = true;

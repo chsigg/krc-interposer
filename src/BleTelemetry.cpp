@@ -1,6 +1,24 @@
 #include "BleTelemetry.h"
+#include "Logger.h"
 #include "sfloat.h"
 #include <Arduino.h>
+
+static void connectCallback(uint16_t conn_handle) {
+  BLEConnection *conn = Bluefruit.Connection(conn_handle);
+  if (!conn) {
+    Log << "Failed to get connection\n";
+    return;
+  }
+
+  std::array<char, 32> name = {};
+  conn->getPeerName(name.data(), name.size() - 1);
+  Log << "BleTelemetry::connectCallback(" << name.data() << ")\n";
+}
+
+static void disconnectCallback(uint16_t conn_handle, uint8_t reason) {
+  Log << "BleTelemetry::disconnectCallback(/*handle=*/" << conn_handle
+      << ", /*reason=*/" << reason << ")\n";
+}
 
 BleTelemetry::BleTelemetry(BLEUart &blueuart,
                            ThermalController &thermal_controller,
@@ -9,6 +27,9 @@ BleTelemetry::BleTelemetry(BLEUart &blueuart,
       trend_analyzer_(trend_analyzer) {}
 
 void BleTelemetry::begin() {
+  Bluefruit.Periph.setConnectCallback(connectCallback);
+  Bluefruit.Periph.setDisconnectCallback(disconnectCallback);
+
   bleuart_.bufferTXD(true);
   bleuart_.begin();
 
@@ -51,8 +72,7 @@ void BleTelemetry::update() {
   }
   last_update_ = millis();
 
-  auto controller_temp =
-      encodeIEEE11073(thermal_controller_.getTargetTemp());
+  auto controller_temp = encodeIEEE11073(thermal_controller_.getTargetTemp());
   target_temp_.notify(controller_temp.data(), controller_temp.size());
 
   auto trend_temp = encodeIEEE11073(trend_analyzer_.getValue(millis()));

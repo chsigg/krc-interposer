@@ -7,7 +7,7 @@
 #include <memory>
 
 static std::array<BleClient *, 2> sBleClients = {};
-static std::vector<std::array<uint8_t, 6>> sDenyList;
+static std::vector<std::array<uint8_t, BLE_GAP_ADDR_LEN>> sDenyList;
 
 BleClient::BleClient(uint16_t service_uuid, uint16_t char_uuid)
     : service_(service_uuid), char_(char_uuid, this) {
@@ -81,6 +81,18 @@ void BleClient::startScan() {
   Bluefruit.Scanner.start(0);
 }
 
+void logAddress(const uint8_t* addr) {
+  for (const uint8_t* it = addr + BLE_GAP_ADDR_LEN; it-- > addr; ) {
+    char hex[3] = {};
+    hex[0] = "0123456789ABCDEF"[*it >> 4];
+    hex[1] = "0123456789ABCDEF"[*it & 0x0F];
+    Log << hex;
+    if (it != addr) {
+      Log << ":";
+    }
+  }
+}
+
 void BleClient::globalScanCallback(ble_gap_evt_adv_report_t *report) {
 
   for (const auto &addr : sDenyList) {
@@ -91,16 +103,7 @@ void BleClient::globalScanCallback(ble_gap_evt_adv_report_t *report) {
   }
 
   Log << "BleClient::globalScanCallback(";
-  for (int i = 5; i >= 0; --i) {
-    char hex[3] = {};
-    uint8_t byte = report->peer_addr.addr[i];
-    hex[0] = "0123456789ABCDEF"[byte >> 4];
-    hex[1] = "0123456789ABCDEF"[byte & 0x0F];
-    Log << hex;
-    if (i > 0) {
-      Log << ":";
-    }
-  }
+  logAddress(report->peer_addr.addr);
   Log << ")\n";
 
   for (auto client : sBleClients) {
@@ -169,9 +172,12 @@ void BleClient::globalConnectCallback(uint16_t conn_handle) {
     return;
   }
 
-  std::array<uint8_t, 6> addr;
+  std::array<uint8_t, BLE_GAP_ADDR_LEN> addr;
   std::copy_n(conn->getPeerAddr().addr, addr.size(), addr.begin());
   sDenyList.push_back(addr);
+  Log << "  Added ";
+  logAddress(addr.data());
+  Log << " to deny list\n";
   conn->disconnect();
 }
 
