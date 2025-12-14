@@ -29,11 +29,6 @@ BleClient::~BleClient() {
   }
 }
 
-bool BleClient::isConnected() const {
-  return const_cast<BLEClientService &>(service_).connHandle() !=
-         BLE_CONN_HANDLE_INVALID;
-}
-
 void BleClient::begin() {
   Log << "BleClient::begin()\n";
 
@@ -65,10 +60,7 @@ void BleClient::startScan() {
   uint8_t count = 0;
   std::array<BLEUuid, sBleClients.size()> uuids;
   for (auto client : sBleClients) {
-    if (client == nullptr) {
-      continue;
-    }
-    if (client->isConnected()) {
+    if (client == nullptr || client->service_.discovered()) {
       continue;
     }
     uuids[count++] = client->service_.uuid;
@@ -81,8 +73,8 @@ void BleClient::startScan() {
   Bluefruit.Scanner.start(0);
 }
 
-void logAddress(const uint8_t* addr) {
-  for (const uint8_t* it = addr + BLE_GAP_ADDR_LEN; it-- > addr; ) {
+static void logAddress(const uint8_t *addr) {
+  for (const uint8_t *it = addr + BLE_GAP_ADDR_LEN; it-- > addr;) {
     char hex[3] = {};
     hex[0] = "0123456789ABCDEF"[*it >> 4];
     hex[1] = "0123456789ABCDEF"[*it & 0x0F];
@@ -115,7 +107,7 @@ void BleClient::globalScanCallback(ble_gap_evt_adv_report_t *report) {
       continue;
     }
 
-    if (client->isConnected()) {
+    if (client->service_.discovered()) {
       Log << "  Already connected\n";
       continue;
     }
@@ -144,7 +136,7 @@ void BleClient::globalConnectCallback(uint16_t conn_handle) {
   Log << "BleClient::globalConnectCallback(" << name.data() << ")\n";
 
   for (auto client : sBleClients) {
-    if (client == nullptr) {
+    if (client == nullptr || client->service_.discovered()) {
       continue;
     }
 
@@ -153,7 +145,12 @@ void BleClient::globalConnectCallback(uint16_t conn_handle) {
     }
 
     if (!client->connectCallback(name.data())) {
-      Log << "  Refused to connect\n";
+      std::array<uint8_t, BLE_GAP_ADDR_LEN> addr;
+      std::copy_n(conn->getPeerAddr().addr, addr.size(), addr.begin());
+      sDenyList.push_back(addr);
+      Log << "  Refused to connect, added ";
+      logAddress(addr.data());
+      Log << " to deny list\n";
       break;
     }
 
@@ -168,35 +165,15 @@ void BleClient::globalConnectCallback(uint16_t conn_handle) {
     }
 
     Log << "  Connected\n";
-    startScan();
-    return;
+    return startScan();
   }
 
-  std::array<uint8_t, BLE_GAP_ADDR_LEN> addr;
-  std::copy_n(conn->getPeerAddr().addr, addr.size(), addr.begin());
-  sDenyList.push_back(addr);
-  Log << "  Added ";
-  logAddress(addr.data());
-  Log << " to deny list\n";
   conn->disconnect();
 }
 
 void BleClient::globalDisconnectCallback(uint16_t conn_handle, uint8_t reason) {
   Log << "BleClient::globalDisconnectCallback(/*handle=*/" << conn_handle
       << ", /*reason=*/" << reason << ")\n";
-
-  for (auto client : sBleClients) {
-    if (client == nullptr) {
-      continue;
-    }
-
-    if (client->service_.connHandle() != conn_handle) {
-      continue;
-    }
-
-    client->disconnectCallback(reason);
-    break;
-  }
 
   startScan();
 }

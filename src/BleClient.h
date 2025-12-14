@@ -13,10 +13,7 @@ public:
   BleClient(uint16_t service_uuid, uint16_t char_uuid);
   virtual ~BleClient();
 
-  bool isConnected() const;
-
   virtual bool connectCallback(const char* name) { return true; };
-  virtual void disconnectCallback(uint8_t reason) {}
   virtual void notifyCallback(uint8_t *data, uint16_t len){};
 
   static void begin();

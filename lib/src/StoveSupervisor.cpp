@@ -39,9 +39,9 @@ void StoveSupervisor::update() {
     if (!is_analyzer_timed_out_) {
       Log << "StoveSupervisor::update() analyzer timed out\n";
       is_analyzer_timed_out_ = true;
+      actuator_.setThrottle(StoveThrottle{});
+      beeper_.beep(Beeper::Signal::ERROR);
     }
-    actuator_.setThrottle(StoveThrottle{});
-    beeper_.beep(Beeper::Signal::ERROR);
     return;
   }
 
