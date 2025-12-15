@@ -50,8 +50,9 @@ void DigiPot::setPosition(float position) {
     return;
   }
 
-  if (std::abs(step - current_step_) > 5) {
+  if (std::abs(step - printed_step_) > 5) {
     Log << "DigiPot::setPosition(" << position << ")\n";
+    printed_step_ = step;
   }
 
   pulse(step > current_step_, std::abs(step - current_step_));

@@ -21,4 +21,5 @@ private:
     const DigitalWritePin& cs_;
 
     int32_t current_step_ = 0;
+    int32_t printed_step_ = 0;
 };

@@ -18,6 +18,7 @@ private:
     const ThrottleConfig config_;
 
     StoveThrottle target_throttle_ = {};
+    StoveThrottle printed_throttle_ = {};
     uint32_t current_boost_ = 0;
     uint32_t last_boost_change_ms_ = 0;
 };

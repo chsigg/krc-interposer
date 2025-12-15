@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <cstdint>
 
 // Maps analog pin reading to stove throttle
@@ -14,3 +15,7 @@ struct StoveThrottle {
   float base;
   uint32_t boost;
 };
+
+inline bool isNear(const StoveThrottle &a, const StoveThrottle &b) {
+  return std::fabs(a.base - b.base) <= 0.05f && a.boost == b.boost;
+}
