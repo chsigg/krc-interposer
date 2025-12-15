@@ -48,7 +48,7 @@ ArduinoAnalogReadPin read_pin(A0, 1.0f / 1023.0f);
 StoveDial dial(read_pin, throttle_config);
 
 // Feedback
-ArduinoBuzzer buzzer(D5, D8);
+ArduinoBuzzer buzzer(D7, D9);
 Beeper beeper(buzzer);
 ArduinoDigitalWritePin red_led(LED_RED);
 Blinker blinker(red_led);

@@ -4,6 +4,35 @@
 #include <cmath>
 #include <cstdint>
 
+#ifdef ARDUINO
+#define USE_RGB_LED
+#endif
+
+#ifdef USE_RGB_LED
+#include <Arduino.h>
+#undef abs
+
+static void setLedColor(float position) {
+  float p = std::clamp(position, 0.0f, 1.0f);
+  float r = 0.0f, g = 0.0f, b = 0.0f;
+
+  if (p < 0.5f) {
+    // Green (0.0) -> Blue (0.5)
+    g = 1.0f - 2.0f * p;
+    b = 2.0f * p;
+  } else {
+    // Blue (0.5) -> Red (1.0)
+    b = 2.0f * (1.0f - p);
+    r = 2.0f * (p - 0.5f);
+  }
+
+  // Write PWM values to the pins (D1=Red, D2=Green, D3=Blue)
+  analogWrite(D3, static_cast<int>(r * 255));
+  analogWrite(D1, static_cast<int>(g * 255));
+  analogWrite(D2, static_cast<int>(b * 255));
+}
+#endif
+
 void delayUs(uint32_t us);
 
 DigiPot::DigiPot(const DigitalWritePin &inc, const DigitalWritePin &ud,
@@ -27,6 +56,10 @@ void DigiPot::setPosition(float position) {
 
   pulse(step > current_step_, std::abs(step - current_step_));
   current_step_ = step;
+
+#ifdef USE_RGB_LED
+  setLedColor(position);
+#endif
 }
 
 float DigiPot::getPosition() const {

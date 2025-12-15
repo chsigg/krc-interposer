@@ -20,34 +20,34 @@ public:
     // Normal and inverted polarity for channel 0 and 1
     int16_t sequence[4] = {period, static_cast<int16_t>(period | 0x8000)};
 
-    NRF_PWM0->PSEL.OUT[0] = g_ADigitalPinMap[pin_p_];
-    NRF_PWM0->PSEL.OUT[1] = g_ADigitalPinMap[pin_n_];
+    NRF_PWM3->PSEL.OUT[0] = g_ADigitalPinMap[pin_p_];
+    NRF_PWM3->PSEL.OUT[1] = g_ADigitalPinMap[pin_n_];
 
-    // Configure PWM0 for differential drive
-    NRF_PWM0->MODE = PWM_MODE_UPDOWN_Up;
-    NRF_PWM0->PRESCALER = PWM_PRESCALER_PRESCALER_DIV_2; // 8MHz
-    NRF_PWM0->COUNTERTOP = period * 2;
-    NRF_PWM0->LOOP = 0;
-    NRF_PWM0->DECODER = (PWM_DECODER_LOAD_Individual << PWM_DECODER_LOAD_Pos) |
+    // Configure PWM3 for differential drive
+    NRF_PWM3->MODE = PWM_MODE_UPDOWN_Up;
+    NRF_PWM3->PRESCALER = PWM_PRESCALER_PRESCALER_DIV_2; // 8MHz
+    NRF_PWM3->COUNTERTOP = period * 2;
+    NRF_PWM3->LOOP = 0;
+    NRF_PWM3->DECODER = (PWM_DECODER_LOAD_Individual << PWM_DECODER_LOAD_Pos) |
                         (PWM_DECODER_MODE_RefreshCount << PWM_DECODER_MODE_Pos);
 
     // Restart sequence automatically
-    NRF_PWM0->SHORTS = PWM_SHORTS_LOOPSDONE_SEQSTART0_Msk;
+    NRF_PWM3->SHORTS = PWM_SHORTS_LOOPSDONE_SEQSTART0_Msk;
 
-    NRF_PWM0->SEQ[0].PTR = (uint32_t)sequence;
-    NRF_PWM0->SEQ[0].CNT = 4;
-    NRF_PWM0->SEQ[0].REFRESH = 0;
-    NRF_PWM0->SEQ[0].ENDDELAY = 0;
+    NRF_PWM3->SEQ[0].PTR = (uint32_t)sequence;
+    NRF_PWM3->SEQ[0].CNT = 4;
+    NRF_PWM3->SEQ[0].REFRESH = 0;
+    NRF_PWM3->SEQ[0].ENDDELAY = 0;
 
-    NRF_PWM0->ENABLE = 1;
-    NRF_PWM0->TASKS_SEQSTART[0] = 1;
+    NRF_PWM3->ENABLE = 1;
+    NRF_PWM3->TASKS_SEQSTART[0] = 1;
   }
 
   void disable() override {
-    NRF_PWM0->TASKS_STOP = 1;
-    NRF_PWM0->ENABLE = 0;
-    NRF_PWM0->PSEL.OUT[0] = 0xFFFFFFFF;
-    NRF_PWM0->PSEL.OUT[1] = 0xFFFFFFFF;
+    NRF_PWM3->TASKS_STOP = 1;
+    NRF_PWM3->ENABLE = 0;
+    NRF_PWM3->PSEL.OUT[0] = 0xFFFFFFFF;
+    NRF_PWM3->PSEL.OUT[1] = 0xFFFFFFFF;
     digitalWrite(pin_p_, LOW);
     digitalWrite(pin_n_, LOW);
   }
