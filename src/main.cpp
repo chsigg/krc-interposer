@@ -9,6 +9,7 @@
 #include "ArduinoLogger.h"
 #include "Beeper.h"
 #include "BleShutterClient.h"
+#include "BleTelemetry.h"
 #include "BleTemperatureClient.h"
 #include "Blinker.h"
 #include "StoveActuator.h"
@@ -17,7 +18,6 @@
 #include "Streaming.h"
 #include "ThermalController.h"
 #include "TrendAnalyzer.h"
-#include "BleTelemetry.h"
 
 void delayUs(uint32_t us) { delayMicroseconds(us); }
 
@@ -39,9 +39,9 @@ Logger &Log = logger;
 
 // Actuator Pins
 ArduinoDigitalWritePin inc(D1), ud(D2), cs(D3);
-DigiPot pot(inc, ud, cs);
+DigiPot digi_pot(inc, ud, cs);
 ThrottleConfig throttle_config; // Defaults
-StoveActuator actuator(pot, throttle_config);
+StoveActuator actuator(digi_pot, throttle_config);
 
 // Sensor Pins
 ArduinoAnalogReadPin read_pin(A0, 1.0f / 1023.0f);
@@ -64,9 +64,9 @@ StoveSupervisor supervisor(dial, actuator, controller, beeper, analyzer,
                            stove_config, throttle_config);
 
 // BLE Modules
-BleTemperatureClient ble_temperature_client(supervisor, analyzer);
-BleShutterClient ble_shutter_client(supervisor);
-BleTelemetry ble_telemetry(bleuart, controller, analyzer);
+BleTemperatureClient temp_client(supervisor, analyzer);
+BleShutterClient shutter_client(supervisor);
+BleTelemetry telemetry(bleuart, controller, analyzer);
 
 void setup() {
   Serial.begin(115200);
@@ -84,42 +84,48 @@ void setup() {
   BleClient::begin();
 
   // Setup BLE Peripheral and start advertising
-  ble_telemetry.begin();
+  telemetry.begin();
 
   blinker.blink(Blinker::Signal::REPEAT);
 }
 
+static void log(uint32_t time_ms) {
+  static uint32_t last_log_ms = 0;
+  if (time_ms - last_log_ms < 60 * 1000) {
+    return;
+  }
+  last_log_ms = time_ms;
+
+  Log << "Analyzer: " << analyzer.getValue(last_log_ms) << "°C "
+      << analyzer.getSlope() << "°C/ms\n";
+  Log << "Dial: throttle " << dial.getThrottle().base << ", boost "
+      << dial.getThrottle().boost << "\n";
+  Log << "Controller: level " << controller.getLevel()
+      << (controller.isLidOpen() ? " (lid open)" : "") << "\n";
+  Log << "Actuator: throttle " << actuator.getThrottle().base << ", boost "
+      << actuator.getThrottle().boost << "\n\n";
+}
+
 void loop() {
-  // Update hardware/logic
+  uint32_t now = millis();
+
   beeper.update();
   blinker.update();
+
   dial.update();
-  controller.update(); // calculates PID based on analyzer
-
-  // Run supervisor logic (Snapshot feedback, Safety, Mixing)
+  controller.update();
   supervisor.update();
-
-  // Actuator update (actually sends to Pot)
   actuator.update();
 
-  BleClient::update(dial.getThrottle().base > 0.0f);
-
-  static uint32_t last_log = 0;
-  if (millis() - last_log > 60*1000) {
-    last_log = millis();
-
-    Log << "Analyzer: " << analyzer.getValue(last_log) << "°C "
-        << analyzer.getSlope() << "°C/ms\n";
-    Log << "Dial: throttle " << dial.getThrottle().base << ", boost "
-        << dial.getThrottle().boost << "\n";
-    Log << "Controller: level " << controller.getLevel()
-        << (controller.isLidOpen() ? " (lid open)" : "") << "\n";
-    Log << "Actuator: throttle " << actuator.getThrottle().base << ", boost "
-        << actuator.getThrottle().boost << "\n\n";
+  static uint32_t throttle_start_ms = 0;
+  if (dial.getThrottle().base == 0.0f) {
+    throttle_start_ms = now;
   }
+  BleClient::update(now - throttle_start_ms >= 2000);
 
-  // Update BLE telemetry
-  ble_telemetry.update();
+  log(now);
+
+  telemetry.update();
 
   delay(10);
 }

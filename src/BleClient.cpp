@@ -66,6 +66,10 @@ void BleClient::update(bool enabled) {
   }
 }
 
+bool BleClient::connected() {
+  return service_.discovered();
+}
+
 void BleClient::startScan() {
   Log << "BleClient::startScan()\n";
 

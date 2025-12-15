@@ -15,6 +15,7 @@ public:
 
   virtual bool connectCallback(const char* name) { return true; };
   virtual void notifyCallback(uint8_t *data, uint16_t len){};
+  bool connected();
 
   static void begin();
   static void update(bool enabled);
