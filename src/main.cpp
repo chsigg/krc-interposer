@@ -118,7 +118,7 @@ void loop() {
   actuator.update();
 
   static uint32_t throttle_start_ms = 0;
-  if (dial.getThrottle().base == 0.0f) {
+  if (dial.getPosition() < throttle_config.min) {
     throttle_start_ms = now;
   }
   BleClient::update(now - throttle_start_ms >= 2000);

@@ -18,14 +18,14 @@ void StoveActuator::setThrottle(const StoveThrottle &throttle) {
 }
 
 void StoveActuator::update() {
+  uint32_t now = millis();
   if (target_throttle_.boost < current_boost_) {
     float below_max_level = config_.max - (config_.boost - config_.max) / 2;
     pot_.setPosition(std::min(below_max_level, target_throttle_.base));
     current_boost_ = 0;
-    return;
+    last_boost_change_ms_ = now;
   }
 
-  uint32_t now = millis();
   if (now - last_boost_change_ms_ < 1000) {
     return;
   }

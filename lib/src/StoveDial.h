@@ -9,8 +9,9 @@ class StoveDial {
 public:
   StoveDial(const AnalogReadPin &pin, const ThrottleConfig &config);
 
-  void update();
+  float getPosition() const { return position_; }
 
+  void update();
   virtual StoveThrottle getThrottle() const;
 
 private:
@@ -21,5 +22,6 @@ private:
   StoveThrottle printed_throttle_ = {};
 
   std::array<float, 4> last_readings_ = {};
+  float position_ = 0.0f;
   bool boost_armed_ = true;
 };

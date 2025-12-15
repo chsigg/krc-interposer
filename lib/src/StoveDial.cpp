@@ -13,9 +13,6 @@ StoveDial::StoveDial(const AnalogReadPin &pin, const ThrottleConfig &config)
   assert(config_.max < config_.boost);
 }
 
-static void printThrottle(const StoveThrottle &throttle) {
-}
-
 void StoveDial::update() {
   auto begin = last_readings_.begin();
   auto end = last_readings_.end();
@@ -25,11 +22,11 @@ void StoveDial::update() {
 
   float sum = std::accumulate(begin, end, 0.0f);
   float reading = sum / last_readings_.size();
-  reading /= 0.85f;  // Voltage divider
+  position_ = reading / 0.85f;  // Voltage divider
 
-  throttle_.base = std::min(reading / config_.max, 1.0f);
+  throttle_.base = std::min(position_ / config_.max, 1.0f);
 
-  if (reading < config_.min) {
+  if (position_ < config_.min) {
     throttle_.base = 0.0f;
   }
 
@@ -38,17 +35,18 @@ void StoveDial::update() {
         if (isNear(dial->throttle_, dial->printed_throttle_)) {
           return;
         }
-        Log << "StoveDial::update() throttle " << dial->throttle_.base
+        Log << "StoveDial::update() position " << dial->position_
+            << ", throttle " << dial->throttle_.base
             << ", boost " << dial->throttle_.boost << "\n";
         dial->printed_throttle_ = dial->throttle_;
       });
 
-  if (reading < config_.max) {
+  if (position_ < config_.max) {
     throttle_.boost = 0;
     return;
   }
 
-  if (reading < config_.boost) {
+  if (position_ < config_.boost) {
     boost_armed_ = true;
     return;
   }
