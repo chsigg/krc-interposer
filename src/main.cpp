@@ -102,6 +102,8 @@ void loop() {
   // Actuator update (actually sends to Pot)
   actuator.update();
 
+  BleClient::update(dial.getThrottle().base > 0.0f);
+
   static uint32_t last_log = 0;
   if (millis() - last_log > 60*1000) {
     last_log = millis();

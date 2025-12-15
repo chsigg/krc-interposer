@@ -17,9 +17,11 @@ public:
   virtual void notifyCallback(uint8_t *data, uint16_t len){};
 
   static void begin();
+  static void update(bool enabled);
 
 private:
   static void startScan();
+  static void stopScanAndDisconnect();
   static void globalConnectCallback(uint16_t conn_handle);
   static void globalDisconnectCallback(uint16_t conn_handle, uint8_t reason);
   static void globalScanCallback(ble_gap_evt_adv_report_t *report);

@@ -8,6 +8,7 @@
 
 static std::array<BleClient *, 2> sBleClients = {};
 static std::vector<std::array<uint8_t, BLE_GAP_ADDR_LEN>> sDenyList;
+static bool sEnabled = false;
 
 BleClient::BleClient(uint16_t service_uuid, uint16_t char_uuid)
     : service_(service_uuid), char_(char_uuid, this) {
@@ -51,7 +52,18 @@ void BleClient::begin() {
   Bluefruit.Scanner.setInterval(160, 80); // Scan every 200ms for 100ms
   Bluefruit.Scanner.restartOnDisconnect(false);
   Bluefruit.Scanner.useActiveScan(false);
-  startScan();
+}
+
+void BleClient::update(bool enabled) {
+  if (sEnabled == enabled) {
+    return;
+  }
+  sEnabled = enabled;
+  if (sEnabled) {
+    startScan();
+  } else {
+    stopScanAndDisconnect();
+  }
 }
 
 void BleClient::startScan() {
@@ -69,8 +81,25 @@ void BleClient::startScan() {
     return;
   }
 
+  if (Bluefruit.Scanner.isRunning()) {
+    Bluefruit.Scanner.stop();
+  }
   Bluefruit.Scanner.filterUuid(uuids.data(), count);
   Bluefruit.Scanner.start(0);
+}
+
+void BleClient::stopScanAndDisconnect() {
+  Log << "BleClient::stop()\n";
+  Bluefruit.Scanner.stop();
+  for (auto client : sBleClients) {
+    if (client == nullptr || !client->service_.discovered()) {
+      continue;
+    }
+    if (BLEConnection *conn =
+            Bluefruit.Connection(client->service_.connHandle())) {
+      conn->disconnect();
+    }
+  }
 }
 
 static void logAddress(const uint8_t *addr) {
@@ -175,7 +204,9 @@ void BleClient::globalDisconnectCallback(uint16_t conn_handle, uint8_t reason) {
   Log << "BleClient::globalDisconnectCallback(/*handle=*/" << conn_handle
       << ", /*reason=*/" << reason << ")\n";
 
-  startScan();
+  if (sEnabled) {
+    startScan();
+  }
 }
 
 void BleClient::globalNotifyCallback(BLEClientCharacteristic *characteristic,
