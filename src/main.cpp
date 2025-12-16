@@ -44,7 +44,7 @@ ThrottleConfig throttle_config; // Defaults
 StoveActuator actuator(digi_pot, throttle_config);
 
 // Sensor Pins
-ArduinoAnalogReadPin read_pin(A0, 1.0f / 1023.0f);
+ArduinoAnalogReadPin read_pin(A0, 1.0f / (1023.0f * 0.85f));
 StoveDial dial(read_pin, throttle_config);
 
 // Feedback
@@ -117,7 +117,7 @@ void loop() {
   supervisor.update();
   actuator.update();
 
-  static uint32_t throttle_start_ms = 0;
+  static uint32_t throttle_start_ms = now;
   if (dial.getPosition() < throttle_config.min) {
     throttle_start_ms = now;
   }

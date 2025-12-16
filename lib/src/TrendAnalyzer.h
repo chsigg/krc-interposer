@@ -2,13 +2,14 @@
 
 #include <array>
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 
 // Thread-safe for one writer and multiple readers.
 class TrendAnalyzer {
   struct Reading {
     float value;
-    uint32_t time;
+    uint32_t time_ms;
   };
 
   struct AnalysisResult {
@@ -19,6 +20,7 @@ class TrendAnalyzer {
 
 public:
   void addReading(float value, uint32_t time_ms);
+  void clear();
 
   float getValue(uint32_t time) const {
     const auto &result = getAnalysisResult();
@@ -36,10 +38,10 @@ private:
     return results_[current_result_index_.load(std::memory_order_acquire)];
   }
 
-  AnalysisResult calculateRegression() const;
+  AnalysisResult calculateRegression(size_t count) const;
 
   std::array<Reading, 15> history_;
-  std::size_t count_ = 0;
+  std::atomic<size_t> count_ = 0;
 
   std::array<AnalysisResult, 2> results_;
   std::atomic<int> current_result_index_{0};

@@ -21,8 +21,7 @@ void StoveDial::update() {
   last_readings_.back() = pin_.read();
 
   float sum = std::accumulate(begin, end, 0.0f);
-  float reading = sum / last_readings_.size();
-  position_ = reading / 0.85f;  // Voltage divider
+  position_ = std::clamp(sum / last_readings_.size(), 0.0f, 1.0f);
 
   throttle_.base = std::min(position_ / config_.max, 1.0f);
 

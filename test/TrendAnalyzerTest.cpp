@@ -87,4 +87,15 @@ TEST_CASE("TrendAnalyzer Logic") {
     // Slope = (20 - 10) / 2001 ~= 0.0049975
     CHECK(ta.getSlope() == doctest::Approx(0.0049975f).epsilon(0.001));
   }
+  
+  SUBCASE("Clear") {
+    ta.addReading(10.0f, 1000);
+    ta.addReading(20.0f, 2000);
+
+    ta.clear();
+
+    CHECK(ta.getLastUpdateMs() == 0);
+    CHECK(ta.getValue(2000) == 0.0f);
+    CHECK(ta.getSlope() == 0.0f);
+  }
 }
