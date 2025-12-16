@@ -8,6 +8,7 @@
 #include "ArduinoDigitalWritePin.h"
 #include "ArduinoLogger.h"
 #include "Beeper.h"
+#include "BleClient.h"
 #include "BleShutterClient.h"
 #include "BleTelemetry.h"
 #include "BleTemperatureClient.h"
@@ -106,6 +107,16 @@ static void log(uint32_t time_ms) {
       << actuator.getThrottle().boost << "\n\n";
 }
 
+void start() {
+  BleClient::start();
+}
+
+void stop() {
+  BleClient::stop();
+  delay(50);
+  analyzer.clear();
+}
+
 void loop() {
   uint32_t now = millis();
 
@@ -117,11 +128,15 @@ void loop() {
   supervisor.update();
   actuator.update();
 
-  static uint32_t throttle_start_ms = now;
+  static uint32_t dial_off_ms = now;
   if (dial.getPosition() < throttle_config.min) {
-    throttle_start_ms = now;
+    dial_off_ms = now;
   }
-  BleClient::update(now - throttle_start_ms >= 2000);
+  static bool started = false;
+  if (bool should_start = now - dial_off_ms >= 2000; should_start != started) {
+    started = should_start;
+    should_start ? start() : stop();
+  }
 
   log(now);
 

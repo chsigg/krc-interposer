@@ -8,7 +8,6 @@
 
 static std::array<BleClient *, 2> sBleClients = {};
 static std::vector<std::array<uint8_t, BLE_GAP_ADDR_LEN>> sDenyList;
-static bool sEnabled = false;
 
 BleClient::BleClient(uint16_t service_uuid, uint16_t char_uuid)
     : service_(service_uuid), char_(char_uuid, this) {
@@ -37,7 +36,6 @@ void BleClient::begin() {
   Bluefruit.setName("KRC Interposer");
 
   Bluefruit.Central.setConnectCallback(globalConnectCallback);
-  Bluefruit.Central.setDisconnectCallback(globalDisconnectCallback);
 
   for (auto client : sBleClients) {
     if (client == nullptr) {
@@ -54,24 +52,12 @@ void BleClient::begin() {
   Bluefruit.Scanner.useActiveScan(false);
 }
 
-void BleClient::update(bool enabled) {
-  if (sEnabled == enabled) {
-    return;
-  }
-  sEnabled = enabled;
-  if (sEnabled) {
-    startScan();
-  } else {
-    stopScanAndDisconnect();
-  }
-}
-
 bool BleClient::connected() {
   return service_.discovered();
 }
 
-void BleClient::startScan() {
-  Log << "BleClient::startScan()\n";
+void BleClient::start() {
+  Log << "BleClient::start()\n";
 
   uint8_t count = 0;
   std::array<BLEUuid, sBleClients.size()> uuids;
@@ -85,6 +71,8 @@ void BleClient::startScan() {
     return;
   }
 
+  Bluefruit.Central.setDisconnectCallback(globalDisconnectCallback);
+
   if (Bluefruit.Scanner.isRunning()) {
     Bluefruit.Scanner.stop();
   }
@@ -92,8 +80,11 @@ void BleClient::startScan() {
   Bluefruit.Scanner.start(0);
 }
 
-void BleClient::stopScanAndDisconnect() {
+void BleClient::stop() {
   Log << "BleClient::stop()\n";
+
+  Bluefruit.Central.setDisconnectCallback(nullptr);
+
   Bluefruit.Scanner.stop();
   for (auto client : sBleClients) {
     if (client == nullptr || !client->service_.discovered()) {
@@ -198,7 +189,7 @@ void BleClient::globalConnectCallback(uint16_t conn_handle) {
     }
 
     Log << "  Connected\n";
-    return startScan();
+    return start();
   }
 
   conn->disconnect();
@@ -208,9 +199,7 @@ void BleClient::globalDisconnectCallback(uint16_t conn_handle, uint8_t reason) {
   Log << "BleClient::globalDisconnectCallback(/*handle=*/" << conn_handle
       << ", /*reason=*/" << reason << ")\n";
 
-  if (sEnabled) {
-    startScan();
-  }
+  start();
 }
 
 void BleClient::globalNotifyCallback(BLEClientCharacteristic *characteristic,

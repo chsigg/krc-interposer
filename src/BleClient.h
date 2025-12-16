@@ -18,11 +18,10 @@ public:
   bool connected();
 
   static void begin();
-  static void update(bool enabled);
+  static void start();
+  static void stop();
 
 private:
-  static void startScan();
-  static void stopScanAndDisconnect();
   static void globalConnectCallback(uint16_t conn_handle);
   static void globalDisconnectCallback(uint16_t conn_handle, uint8_t reason);
   static void globalScanCallback(ble_gap_evt_adv_report_t *report);
