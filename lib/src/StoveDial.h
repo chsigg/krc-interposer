@@ -8,11 +8,13 @@
 class StoveDial {
 public:
   StoveDial(const AnalogReadPin &pin, const ThrottleConfig &config);
+  virtual ~StoveDial() = default;
 
-  float getPosition() const { return position_; }
-
-  void update();
+  virtual float getPosition() const { return position_; }
+  virtual bool isOff() const { return position_ < config_.min; }
   virtual StoveThrottle getThrottle() const;
+
+  virtual void update();
 
 private:
   const AnalogReadPin &pin_;

@@ -14,10 +14,11 @@ public:
   };
 
   explicit Beeper(Buzzer &buzzer);
+  virtual ~Beeper() = default;
 
   virtual void beep(Signal signal);
 
-  void update();
+  virtual void update();
 
 private:
   Buzzer &buzzer_;

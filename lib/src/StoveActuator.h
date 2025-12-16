@@ -6,19 +6,18 @@
 
 class StoveActuator {
 public:
-    StoveActuator(DigiPot& pot, const ThrottleConfig& config);
+  StoveActuator(DigiPot &pot, const ThrottleConfig &config);
+  virtual ~StoveActuator() = default;
 
-    virtual void setThrottle(const StoveThrottle& throttle);
-    StoveThrottle getThrottle() const { return target_throttle_; }
-
-    void update();
+  virtual void setPosition(float position);
+  virtual void setThrottle(const StoveThrottle &throttle);
 
 private:
-    DigiPot& pot_;
-    const ThrottleConfig config_;
+  DigiPot &pot_;
+  const ThrottleConfig config_;
 
-    StoveThrottle target_throttle_ = {};
-    StoveThrottle printed_throttle_ = {};
-    uint32_t current_boost_ = 0;
-    uint32_t last_boost_change_ms_ = 0;
+  bool is_direct_mode_ = true;
+  uint32_t current_boost_ = 0;
+  uint32_t last_boost_change_ms_ = 0;
+  StoveThrottle printed_throttle_ = {};
 };

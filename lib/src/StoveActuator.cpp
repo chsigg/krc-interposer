@@ -8,30 +8,41 @@ extern "C" uint32_t millis();
 StoveActuator::StoveActuator(DigiPot &pot, const ThrottleConfig &config)
     : pot_(pot), config_(config) {}
 
+void StoveActuator::setPosition(float position) {
+  pot_.setPosition(position);
+  is_direct_mode_ = true;
+}
+
 void StoveActuator::setThrottle(const StoveThrottle &throttle) {
-  if (!isNear(throttle, printed_throttle_)) {
+  if (is_direct_mode_ || !isNear(throttle, printed_throttle_)) {
     Log << "StoveActuator::setThrottle(/*base=*/" << throttle.base
         << ", /*boost=*/" << throttle.boost << ")\n";
     printed_throttle_ = throttle;
   }
-  target_throttle_ = throttle;
-}
 
-void StoveActuator::update() {
+  float delta = (config_.boost - config_.max) / 2;
+  float below_max_level = config_.max - delta;
+  float above_max_level = config_.max + delta;
+
+  float position = throttle.base * config_.max;
+  if (throttle.base >= 1.0f) {
+    position = above_max_level;
+  }
+
   uint32_t now = millis();
-  if (target_throttle_.boost < current_boost_) {
-    float below_max_level = config_.max - (config_.boost - config_.max) / 2;
-    pot_.setPosition(std::min(below_max_level, target_throttle_.base));
+  if (is_direct_mode_ || throttle.boost < current_boost_) {
+    pot_.setPosition(std::min(below_max_level, position));
     current_boost_ = 0;
     last_boost_change_ms_ = now;
+    is_direct_mode_ = false;
   }
 
   if (now - last_boost_change_ms_ < 1000) {
     return;
   }
 
-  if (target_throttle_.boost == current_boost_) {
-    pot_.setPosition(target_throttle_.base);
+  if (throttle.boost == current_boost_) {
+    pot_.setPosition(position);
     return;
   }
 
@@ -39,7 +50,6 @@ void StoveActuator::update() {
     pot_.setPosition(1.0f);
     ++current_boost_;
   } else {
-    float above_max_level = config_.max + (config_.boost - config_.max) / 2;
     pot_.setPosition(above_max_level);
   }
 

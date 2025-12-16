@@ -23,6 +23,21 @@ TEST_CASE("StoveDial Logic") {
     CHECK(dial.getThrottle().boost == 0);
   }
 
+  SUBCASE("isOff Logic") {
+    SUBCASE("Is off") {
+      set_reading(config.min - 0.05f);
+      CHECK(dial.isOff());
+    }
+
+    SUBCASE("Is on") {
+      set_reading(config.min);
+      CHECK_FALSE(dial.isOff());
+
+      set_reading(config.max);
+      CHECK_FALSE(dial.isOff());
+    }
+  }
+
   SUBCASE("Throttle Mapping") {
     SUBCASE("Below min") {
       set_reading(0.05f);
@@ -59,7 +74,7 @@ TEST_CASE("StoveDial Logic") {
     CHECK(dial.getThrottle().boost == 1);
 
     // Stay in boost zone (should not increment)
-    set_reading(9.1f);
+    set_reading(0.91f);
     CHECK(dial.getThrottle().boost == 1);
 
     // Drop to re-arm zone (between max and boost)

@@ -17,7 +17,7 @@ class StoveSupervisor {
 public:
   StoveSupervisor(StoveDial &dial, StoveActuator &actuator,
                   ThermalController &controller, Beeper &beeper,
-                  const TrendAnalyzer &analyzer, const StoveConfig &config,
+                  TrendAnalyzer &analyzer, const StoveConfig &config,
                   const ThrottleConfig &throttle_config);
 
   void update();
@@ -30,8 +30,9 @@ private:
   StoveActuator &actuator_;
   ThermalController &controller_;
   Beeper &beeper_;
-  const TrendAnalyzer &analyzer_;
+  TrendAnalyzer &analyzer_;
   const StoveConfig stove_config_;
   const ThrottleConfig throttle_config_;
-  bool is_analyzer_timed_out_{true};
+  bool is_direct_mode_ = true;
+  bool is_analyzer_timed_out_ = false;
 };

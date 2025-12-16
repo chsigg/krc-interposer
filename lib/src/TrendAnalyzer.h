@@ -19,15 +19,17 @@ class TrendAnalyzer {
   };
 
 public:
-  void addReading(float value, uint32_t time_ms);
-  void clear();
+  virtual ~TrendAnalyzer() = default;
 
-  float getValue(uint32_t time) const {
+  virtual void addReading(float value, uint32_t time_ms);
+  virtual void clear();
+
+  virtual float getValue(uint32_t time) const {
     const auto &result = getAnalysisResult();
     return (time - result.last_update_ms) * result.slope + result.intercept;
   }
 
-  float getSlope() const { return getAnalysisResult().slope; }
+  virtual float getSlope() const { return getAnalysisResult().slope; }
 
   virtual uint32_t getLastUpdateMs() const {
     return getAnalysisResult().last_update_ms;

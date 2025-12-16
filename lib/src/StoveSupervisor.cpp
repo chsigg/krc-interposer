@@ -7,7 +7,7 @@ extern "C" uint32_t millis();
 
 StoveSupervisor::StoveSupervisor(StoveDial &dial, StoveActuator &actuator,
                                  ThermalController &controller, Beeper &beeper,
-                                 const TrendAnalyzer &analyzer,
+                                 TrendAnalyzer &analyzer,
                                  const StoveConfig &stove_config,
                                  const ThrottleConfig &throttle_config)
     : dial_(dial), actuator_(actuator), controller_(controller),
@@ -24,32 +24,51 @@ void StoveSupervisor::takeSnapshot() {
       (knob_pos * (stove_config_.max_temp_c - stove_config_.min_temp_c));
 
   controller_.setTargetTemp(target_temp);
+  is_direct_mode_ = false;
 
   beeper_.beep(Beeper::Signal::ACCEPT);
 }
 
 void StoveSupervisor::update() {
-  uint32_t now = millis();
+  auto clear_timeout = [&] {
+    if (!is_analyzer_timed_out_) {
+      return;
+    }
+    Log << "StoveSupervisor::update() analyzer recovered\n";
+    beeper_.beep(Beeper::Signal::NONE);
+    is_analyzer_timed_out_ = false;
+  };
 
-  if (analyzer_.getLastUpdateMs() == 0) {
-    return; // No data.
+  dial_.update();
+
+  if (dial_.isOff()) {
+    analyzer_.clear();
+    clear_timeout();
+    is_direct_mode_ = true;
   }
 
-  if (now - analyzer_.getLastUpdateMs() > stove_config_.data_timeout_ms) {
+  if (is_direct_mode_) {
+    actuator_.setPosition(dial_.getPosition());
+    return;
+  }
+
+  if (millis() - analyzer_.getLastUpdateMs() > stove_config_.data_timeout_ms) {
     if (!is_analyzer_timed_out_) {
       Log << "StoveSupervisor::update() analyzer timed out\n";
       is_analyzer_timed_out_ = true;
-      actuator_.setThrottle(StoveThrottle{});
+      actuator_.setPosition(0.0f);
       beeper_.beep(Beeper::Signal::ERROR);
     }
     return;
   }
 
-  if (is_analyzer_timed_out_) {
-    Log << "StoveSupervisor::update() analyzer recovered\n";
-    is_analyzer_timed_out_ = false;
+  if (analyzer_.getLastUpdateMs() == 0) {
+    return;
   }
 
+  clear_timeout();
+
+  controller_.update();
   float pid_out = controller_.getLevel();
 
   StoveThrottle output = dial_.getThrottle();

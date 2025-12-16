@@ -14,13 +14,14 @@ struct ThermalConfig {
 class ThermalController {
 public:
   ThermalController(const TrendAnalyzer &analyzer, const ThermalConfig &config);
+  virtual ~ThermalController() = default;
 
-  void update();
+  virtual void update();
 
   virtual float getTargetTemp() const;
   virtual void setTargetTemp(float temp);
   virtual float getLevel() const { return level_; }
-  bool isLidOpen() const { return lid_open_; }
+  virtual bool isLidOpen() const { return lid_open_; }
 
 private:
   const TrendAnalyzer &analyzer_;

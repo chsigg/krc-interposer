@@ -103,8 +103,7 @@ static void log(uint32_t time_ms) {
       << dial.getThrottle().boost << "\n";
   Log << "Controller: level " << controller.getLevel()
       << (controller.isLidOpen() ? " (lid open)" : "") << "\n";
-  Log << "Actuator: throttle " << actuator.getThrottle().base << ", boost "
-      << actuator.getThrottle().boost << "\n\n";
+  Log << "DigiPot: position " << digi_pot.getPosition() << "\n";
 }
 
 void start() {
@@ -113,8 +112,6 @@ void start() {
 
 void stop() {
   BleClient::stop();
-  delay(50);
-  analyzer.clear();
 }
 
 void loop() {
@@ -123,13 +120,10 @@ void loop() {
   beeper.update();
   blinker.update();
 
-  dial.update();
-  controller.update();
   supervisor.update();
-  actuator.update();
 
   static uint32_t dial_off_ms = now;
-  if (dial.getPosition() < throttle_config.min) {
+  if (dial.isOff()) {
     dial_off_ms = now;
   }
   static bool started = false;

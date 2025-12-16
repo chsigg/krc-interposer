@@ -13,7 +13,7 @@ struct ThrottleConfig {
 
 struct StoveThrottle {
   float base;
-  uint32_t boost;
+  uint32_t boost;  // if boost > 0, base must be 1.0
 };
 
 inline bool isNear(const StoveThrottle &a, const StoveThrottle &b) {
