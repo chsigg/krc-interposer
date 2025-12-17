@@ -21,5 +21,5 @@ private:
   DigitalWritePin &led_;
 
   uint8_t step_ = 0;
-  uint32_t next_step_time_ms_ = 0;
+  uint32_t step_end_ms_ = 0;
 };

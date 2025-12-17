@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
+#include <limits>
 
 extern "C" uint32_t millis();
 
@@ -11,7 +12,8 @@ Beeper::Beeper(Buzzer &buzzer) : buzzer_(buzzer) {}
 void Beeper::beep(Signal signal) {
   Log << "Beeper::beep(" << static_cast<uint32_t>(signal) << ")\n";
   step_ = static_cast<uint32_t>(signal);
-  next_step_time_ms_ = millis();
+  step_end_ms_ = millis();
+  update();
 }
 
 void Beeper::update() {
@@ -22,33 +24,37 @@ void Beeper::update() {
   static constexpr uint16_t SILENT_DURATION_MS = 1000;
 
   static constexpr struct {
-      uint16_t duration_ms;
-      uint16_t frequency_hz;
-      uint8_t next_step;
+    uint16_t duration_ms;
+    uint16_t frequency_hz;
+    uint8_t next_step;
   } STATES[] = {
-      {0, 0, 9},
-      {TONE_DURATION_MS,LOW_FREQ, 4},
+      {0, 0, 255},
+      {TONE_DURATION_MS, LOW_FREQ, 4},
       {TONE_DURATION_MS, HIGH_FREQ, 5},
-      {TONE_DURATION_MS,LOW_FREQ, 6},
-      {TONE_DURATION_MS,HIGH_FREQ, 0},
-      {TONE_DURATION_MS,LOW_FREQ, 0},
-      {TONE_DURATION_MS,0, 7},
-      {TONE_DURATION_MS,LOW_FREQ, 8},
-      {SILENT_DURATION_MS,0, 3},
+      {TONE_DURATION_MS, LOW_FREQ, 6},
+      {TONE_DURATION_MS, HIGH_FREQ, 0},
+      {TONE_DURATION_MS, LOW_FREQ, 0},
+      {TONE_DURATION_MS, 0, 7},
+      {TONE_DURATION_MS, LOW_FREQ, 8},
+      {SILENT_DURATION_MS, 0, 3},
   };
 
-  if (step_ >= std::size(STATES) || millis() < next_step_time_ms_) {
-    return;
+  uint32_t now = millis();
+  while (step_ < std::size(STATES)) {
+
+    if (now - step_end_ms_ > std::numeric_limits<int32_t>::max()) {
+      return;
+    }
+
+    auto state = STATES[step_];
+
+    if (state.frequency_hz > 0) {
+      buzzer_.enable(state.frequency_hz);
+    } else {
+      buzzer_.disable();
+    }
+
+    step_ = state.next_step;
+    step_end_ms_ = now + state.duration_ms;
   }
-
-  auto state = STATES[step_];
-
-  if (state.frequency_hz > 0) {
-    buzzer_.enable(state.frequency_hz);
-  } else {
-    buzzer_.disable();
-  }
-
-  step_ = state.next_step;
-  next_step_time_ms_ = millis() + state.duration_ms;
 }

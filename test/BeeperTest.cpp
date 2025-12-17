@@ -18,10 +18,26 @@ TEST_CASE("Beeper Logic") {
   Fake(Method(buzzer_mock, enable));
   Fake(Method(buzzer_mock, disable));
 
+  SUBCASE("beep() is instantaneous") {
+    When(Method(ArduinoFake(), millis)).AlwaysReturn(1000);
+    beeper.beep(Beeper::Signal::ACCEPT);
+    Verify(Method(buzzer_mock, enable).Using(LOW_FREQ)).Once();
+    beeper.update();
+    VerifyNoOtherInvocations(buzzer_mock);
+  }
+
+  SUBCASE("beep(NONE) turns buzzer off") {
+    When(Method(ArduinoFake(), millis)).AlwaysReturn(1000);
+    beeper.beep(Beeper::Signal::ERROR);
+    Verify(Method(buzzer_mock, enable).Using(LOW_FREQ)).Once();
+
+    beeper.beep(Beeper::Signal::NONE);
+    Verify(Method(buzzer_mock, disable)).Once();
+  }
+
   SUBCASE("ACCEPT signal") {
     When(Method(ArduinoFake(), millis)).AlwaysReturn(1000);
     beeper.beep(Beeper::Signal::ACCEPT);
-    beeper.update();
     Verify(Method(buzzer_mock, enable).Using(LOW_FREQ)).Once();
 
     When(Method(ArduinoFake(), millis)).AlwaysReturn(1000 + TONE_DURATION_MS);
@@ -37,7 +53,6 @@ TEST_CASE("Beeper Logic") {
   SUBCASE("REJECT signal") {
     When(Method(ArduinoFake(), millis)).AlwaysReturn(1000);
     beeper.beep(Beeper::Signal::REJECT);
-    beeper.update();
     Verify(Method(buzzer_mock, enable).Using(HIGH_FREQ)).Once();
 
     When(Method(ArduinoFake(), millis)).AlwaysReturn(1000 + TONE_DURATION_MS);
@@ -53,7 +68,6 @@ TEST_CASE("Beeper Logic") {
   SUBCASE("ERROR signal") {
     When(Method(ArduinoFake(), millis)).AlwaysReturn(1000);
     beeper.beep(Beeper::Signal::ERROR);
-    beeper.update();
     Verify(Method(buzzer_mock, enable).Using(LOW_FREQ)).Once();
 
     When(Method(ArduinoFake(), millis)).AlwaysReturn(1000 + TONE_DURATION_MS);

@@ -11,25 +11,27 @@ TEST_CASE("Blinker Logic") {
 
   Fake(Method(led_mock, set));
 
-  SUBCASE("blink(NONE) turns led off") {
+  SUBCASE("blink() is instantaneous") {
     When(Method(ArduinoFake(), millis)).AlwaysReturn(1000);
-    blinker.blink(Blinker::Signal::REPEAT);
-    blinker.update();
+    blinker.blink(Blinker::Signal::ONCE);
     Verify(Method(led_mock, set).Using(PinState::Low)).Once();
-
-    blinker.blink(Blinker::Signal::NONE);
-    blinker.update();
-    Verify(Method(led_mock, set).Using(PinState::High)).Once();
     blinker.update();
     VerifyNoOtherInvocations(led_mock);
   }
 
+  SUBCASE("blink(NONE) turns led off") {
+    When(Method(ArduinoFake(), millis)).AlwaysReturn(1000);
+    blinker.blink(Blinker::Signal::REPEAT);
+    Verify(Method(led_mock, set).Using(PinState::Low)).Once();
+
+    blinker.blink(Blinker::Signal::NONE);
+    Verify(Method(led_mock, set).Using(PinState::High)).Once();
+  }
+
   SUBCASE("ONCE signal") {
+    // First, LED should be on
     When(Method(ArduinoFake(), millis)).AlwaysReturn(1000);
     blinker.blink(Blinker::Signal::ONCE);
-
-    // First update, LED should be on
-    blinker.update();
     Verify(Method(led_mock, set).Using(PinState::Low)).Once();
 
     // After 100ms, LED should be off and signal finished
@@ -48,7 +50,6 @@ TEST_CASE("Blinker Logic") {
     blinker.blink(Blinker::Signal::REPEAT);
 
     // First update, LED should be on for 100ms
-    blinker.update();
     Verify(Method(led_mock, set).Using(PinState::Low)).Once();
 
     // After 100ms, LED should be off for 200ms

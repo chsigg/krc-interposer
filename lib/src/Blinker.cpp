@@ -3,6 +3,7 @@
 #include "Logger.h"
 #include <cstdint>
 #include <iterator>
+#include <limits>
 
 extern "C" uint32_t millis();
 
@@ -11,7 +12,8 @@ Blinker::Blinker(DigitalWritePin &led) : led_(led) {}
 void Blinker::blink(Signal signal) {
   Log << "Blinker::blink(" << static_cast<uint32_t>(signal) << ")\n";
   step_ = static_cast<uint8_t>(signal);
-  next_step_time_ms_ = millis();
+  step_end_ms_ = millis();
+  update();
 }
 
 void Blinker::update() {
@@ -22,7 +24,7 @@ void Blinker::update() {
     uint8_t next_step;
   } STATES[] = {
       // None
-      {0, PinState::High, 4},
+      {0, PinState::High, 255},
       // Once
       {100, PinState::Low, 0},
       // Repeat
@@ -30,13 +32,18 @@ void Blinker::update() {
       {1000, PinState::High, 2},
   };
 
-  if (step_ >= std::size(STATES) || millis() < next_step_time_ms_) {
-    return;
+  uint32_t now = millis();
+  while (step_ < std::size(STATES)) {
+
+    if (now - step_end_ms_ > std::numeric_limits<int32_t>::max()) {
+      return;
+    }
+
+    auto state = STATES[step_];
+
+    led_.set(state.pin_state);
+
+    step_ = state.next_step;
+    step_end_ms_ = now + state.duration_ms;
   }
-
-  auto state = STATES[step_];
-
-  led_.set(state.pin_state);
-  step_ = state.next_step;
-  next_step_time_ms_ = millis() + state.duration_ms;
 }
