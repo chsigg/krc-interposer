@@ -30,25 +30,34 @@ void StoveActuator::setThrottle(const StoveThrottle &throttle) {
         << ", /*boost=*/" << throttle.boost << ")\n";
     printed_throttle_ = throttle;
   }
+  target_throttle_ = throttle;
 
   if (is_bypass_) {
     bypass_pin_.set(PinState::High);
     is_bypass_ = false;
   }
 
+  update();
+}
+
+void StoveActuator::update() {
+  if (is_bypass_) {
+    return;
+  }
+
   const float delta = (config_.boost - config_.max) / 2;
   const float below_max_level = config_.max - delta;
   const float above_max_level = config_.max + delta;
 
-  float position = std::min(throttle.base * config_.max, above_max_level);
+  float position = std::min(target_throttle_.base * config_.max, above_max_level);
 
-  if (throttle.boost == current_boost_) {
+  if (target_throttle_.boost == current_boost_) {
     potentiometer_.setPosition(position);
     return;
   }
 
   uint32_t now = millis();
-  if (throttle.boost < current_boost_) {
+  if (target_throttle_.boost < current_boost_) {
     potentiometer_.setPosition(std::min(below_max_level, position));
     current_boost_ = 0;
     is_boost_pulse_active_ = false;

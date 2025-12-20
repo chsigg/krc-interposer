@@ -1,5 +1,6 @@
 #include <doctest.h>
 #include <ArduinoFake.h>
+#include <vector>
 
 #include "StoveSupervisor.h"
 #include "StoveDial.h"
@@ -8,6 +9,7 @@
 #include "Beeper.h"
 #include "Potentiometer.h"
 #include "TrendAnalyzer.h"
+#include "Logger.h"
 
 // Interfaces
 #include "AnalogReadPin.h"
@@ -49,6 +51,7 @@ TEST_CASE("StoveSupervisor Logic") {
   Fake(Method(dial_mock, update));
   Fake(Method(actuator_mock, setBypass));
   Fake(Method(actuator_mock, setThrottle));
+  Fake(Method(actuator_mock, update));
   Fake(Method(beeper_mock, beep));
   When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(0);
   Fake(Method(analyzer_mock, clear));
@@ -60,7 +63,7 @@ TEST_CASE("StoveSupervisor Logic") {
   SUBCASE("Starts in bypass") {
     When(Method(dial_mock, getPosition)).Return(0.7f);
     supervisor.update();
-    Verify(Method(actuator_mock, setBypass)).Once();
+    Verify(Method(actuator_mock, setBypass)).Never();
     Verify(Method(actuator_mock, setThrottle)).Never();
   }
 
@@ -101,19 +104,29 @@ TEST_CASE("StoveSupervisor Logic") {
   }
 
   SUBCASE("Safety check for stale data") {
+    // Capture arguments to avoid reference-to-stack issues with FakeIt
+    std::vector<StoveThrottle> throttles;
+    When(Method(actuator_mock, setThrottle)).AlwaysDo([&](const StoveThrottle &t) {
+      throttles.push_back(t);
+    });
+
     // 1. Exit bypass and establish a healthy state
     supervisor.takeSnapshot();
     Verify(Method(beeper_mock, beep).Using(Beeper::Signal::ACCEPT)).Once();
     set_time(1000);
     When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(1000);
     supervisor.update();
+    CHECK(throttles.size() == 1);
 
     // 2. Setup Stale Data condition
     set_time(1000 + stove_config.data_timeout_ms + 1);
 
     // 3. Expect Safety Shutdown
     supervisor.update();
-    Verify(Method(actuator_mock, setBypass)).Once();
+    Verify(Method(actuator_mock, setBypass)).Never();
+    CHECK(throttles.size() == 2);
+    CHECK(isNear(throttles[1], StoveThrottle{}));
+
     Verify(Method(beeper_mock, beep).Using(Beeper::Signal::ERROR)).Once();
 
     // 4. Check recovery

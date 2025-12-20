@@ -42,13 +42,13 @@ void StoveSupervisor::update() {
   dial_.update();
 
   if (dial_.isOff()) {
+    actuator_.setBypass();
     analyzer_.clear();
     clear_timeout();
     is_bypass_ = true;
   }
 
   if (is_bypass_) {
-    actuator_.setBypass();
     return;
   }
 
@@ -56,7 +56,7 @@ void StoveSupervisor::update() {
     if (!is_analyzer_timed_out_) {
       Log << "StoveSupervisor::update() analyzer timed out\n";
       is_analyzer_timed_out_ = true;
-      actuator_.setBypass();
+      actuator_.setThrottle(StoveThrottle{});
       beeper_.beep(Beeper::Signal::ERROR);
     }
     return;

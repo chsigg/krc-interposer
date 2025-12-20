@@ -12,6 +12,7 @@ public:
 
   virtual void setBypass();
   virtual void setThrottle(const StoveThrottle &throttle);
+  virtual void update();
 
 private:
   Potentiometer &potentiometer_;
@@ -23,4 +24,5 @@ private:
   bool is_boost_pulse_active_;
   uint32_t last_boost_change_ms_ = 0;
   StoveThrottle printed_throttle_ = {};
+  StoveThrottle target_throttle_ = {};
 };
