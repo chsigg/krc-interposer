@@ -1,13 +1,23 @@
 #include "BleClient.h"
 #include "Logger.h"
 #include <Arduino.h>
+#include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 
 static std::array<BleClient *, 2> sBleClients = {};
-static std::vector<std::array<uint8_t, BLE_GAP_ADDR_LEN>> sDenyList;
+
+struct DeniedClient {
+  std::array<uint8_t, BLE_GAP_ADDR_LEN> addr;
+  uint32_t deny_until_ms;
+};
+
+static std::array<DeniedClient, 16> sDenyList;
+static size_t sDenyListCount = 0;
 
 BleClient::BleClient(uint16_t service_uuid, uint16_t char_uuid)
     : service_(service_uuid), char_(char_uuid, this) {
@@ -52,9 +62,7 @@ void BleClient::begin() {
   Bluefruit.Scanner.useActiveScan(false);
 }
 
-bool BleClient::connected() {
-  return service_.discovered();
-}
+bool BleClient::connected() { return service_.discovered(); }
 
 void BleClient::start() {
   Log << "BleClient::start()\n";
@@ -109,18 +117,56 @@ static void logAddress(const uint8_t *addr) {
   }
 }
 
-void BleClient::globalScanCallback(ble_gap_evt_adv_report_t *report) {
+static void addDeniedClient(const uint8_t *address, uint32_t timeout_ms) {
+  std::array<uint8_t, BLE_GAP_ADDR_LEN> addr;
+  std::copy_n(address, BLE_GAP_ADDR_LEN, addr.begin());
+  uint32_t deny_until_ms = millis() + timeout_ms;
 
-  for (const auto &addr : sDenyList) {
-    if (memcmp(report->peer_addr.addr, addr.data(), addr.size()) == 0) {
-      Bluefruit.Scanner.resume();
-      return;
-    }
+  auto begin = sDenyList.begin();
+  auto end = begin + sDenyListCount;
+  auto it = std::find_if(begin, end, [&](const DeniedClient &client) {
+    return client.addr == addr;
+  });
+
+  if (it == end && end == sDenyList.end()) {
+    it = begin;
   }
 
+  if (it != end) {
+    std::move(it + 1, end, it);
+    --sDenyListCount;
+  }
+
+  sDenyList[sDenyListCount++] = {addr, deny_until_ms};
+}
+
+static void trimDenyList() {
+  uint32_t now = millis();
+  auto begin = sDenyList.begin();
+  auto end = std::remove_if(
+      begin, begin + sDenyListCount, [&](const DeniedClient &client) {
+        return client.deny_until_ms - now > std::numeric_limits<int32_t>::max();
+      });
+  sDenyListCount = std::distance(begin, end);
+}
+
+void BleClient::globalScanCallback(ble_gap_evt_adv_report_t *report) {
+  std::array<uint8_t, BLE_GAP_ADDR_LEN> addr;
+  std::copy_n(report->peer_addr.addr, BLE_GAP_ADDR_LEN, addr.begin());
+
   Log << "BleClient::globalScanCallback(";
-  logAddress(report->peer_addr.addr);
+  logAddress(addr.data());
   Log << ")\n";
+
+  trimDenyList();
+  for (size_t i = 0; i < sDenyListCount; ++i) {
+    if (sDenyList[i].addr != addr) {
+      continue;
+    }
+    Log << "  Denied\n";
+    Bluefruit.Scanner.resume();
+    return;
+  }
 
   for (auto client : sBleClients) {
     if (client == nullptr) {
@@ -138,6 +184,7 @@ void BleClient::globalScanCallback(ble_gap_evt_adv_report_t *report) {
 
     Log << "  Connecting to 0x" << client->service_.uuid.toString().c_str()
         << "\n";
+    addDeniedClient(report->peer_addr.addr, 10 * 1000);
     Bluefruit.Central.connect(report);
 
     return;
@@ -169,11 +216,9 @@ void BleClient::globalConnectCallback(uint16_t conn_handle) {
     }
 
     if (!client->connectCallback(name.data())) {
-      std::array<uint8_t, BLE_GAP_ADDR_LEN> addr;
-      std::copy_n(conn->getPeerAddr().addr, addr.size(), addr.begin());
-      sDenyList.push_back(addr);
+      addDeniedClient(conn->getPeerAddr().addr, 10 * 60 * 1000);
       Log << "  Refused to connect, added ";
-      logAddress(addr.data());
+      logAddress(conn->getPeerAddr().addr);
       Log << " to deny list\n";
       break;
     }
