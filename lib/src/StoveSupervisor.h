@@ -13,7 +13,7 @@ struct StoveConfig {
   uint32_t data_timeout_ms = 60 * 1000; // 1 minute
 };
 
-class StoveSupervisor {
+class StoveSupervisor final {
 public:
   StoveSupervisor(StoveDial &dial, StoveActuator &actuator,
                   ThermalController &controller, Beeper &beeper,

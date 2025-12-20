@@ -3,7 +3,7 @@
 #include "BleClient.h"
 #include "StoveSupervisor.h"
 
-class BleShutterClient : public BleClient {
+class BleShutterClient final : public BleClient {
 public:
   BleShutterClient(StoveSupervisor& supervisor);
 

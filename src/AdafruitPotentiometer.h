@@ -3,7 +3,7 @@
 #include "Potentiometer.h"
 #include <Adafruit_DS3502.h>
 
-class AdafruitPotentiometer : public Potentiometer {
+class AdafruitPotentiometer final : public Potentiometer {
 public:
     void begin();
     void setPosition(float position) override;

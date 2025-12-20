@@ -3,7 +3,7 @@
 #include "AnalogReadPin.h"
 #include <Arduino.h>
 
-class ArduinoAnalogReadPin : public AnalogReadPin {
+class ArduinoAnalogReadPin final : public AnalogReadPin {
 public:
   explicit ArduinoAnalogReadPin(int pin, float scale)
       : pin_(pin), scale_(scale) {

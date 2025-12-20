@@ -5,9 +5,9 @@
 #include "TrendAnalyzer.h"
 #include <bluefruit.h>
 
-class BleTelemetry {
+class BleTelemetry final {
 
-  class TempMeasurement : public BLECharacteristic {
+  class TempMeasurement final : public BLECharacteristic {
   public:
     TempMeasurement(BleTelemetry *telemetry)
         : BLECharacteristic(UUID16_CHR_TEMPERATURE_MEASUREMENT),

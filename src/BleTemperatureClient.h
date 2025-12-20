@@ -4,7 +4,7 @@
 #include "StoveSupervisor.h"
 #include "TrendAnalyzer.h"
 
-class BleTemperatureClient : public BleClient {
+class BleTemperatureClient final : public BleClient {
 public:
   BleTemperatureClient(StoveSupervisor& supervisor, TrendAnalyzer& analyzer);
 

@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include "DigitalWritePin.h"
 
-class ArduinoDigitalWritePin : public DigitalWritePin {
+class ArduinoDigitalWritePin final : public DigitalWritePin {
 public:
     explicit ArduinoDigitalWritePin(int pin) : pin_(pin) {
         pinMode(pin_, OUTPUT);

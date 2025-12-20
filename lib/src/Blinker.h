@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <sys/types.h>
 
-class Blinker {
+class Blinker final {
 public:
   enum class Signal : uint8_t {
     NONE,

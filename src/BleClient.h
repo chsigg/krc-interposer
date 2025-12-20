@@ -28,7 +28,7 @@ private:
   static void globalNotifyCallback(BLEClientCharacteristic *chr, uint8_t *data,
                                    uint16_t len);
 
-  class BleCharacteristic : public BLEClientCharacteristic {
+  class BleCharacteristic final : public BLEClientCharacteristic {
   public:
     BleCharacteristic(uint16_t uuid, BleClient *client)
         : BLEClientCharacteristic(uuid), client(client) {}

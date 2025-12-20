@@ -4,7 +4,7 @@
 #include <Print.h>
 
 // This class tees output to two Print classes.
-class ArduinoLogger : public Logger {
+class ArduinoLogger final : public Logger {
 public:
   // Constructor takes references to the two streams.
   ArduinoLogger(Print &primary, Print &secondary)
