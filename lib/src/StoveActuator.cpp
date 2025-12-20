@@ -1,57 +1,72 @@
 #include "StoveActuator.h"
+#include "DigitalWritePin.h"
 #include "Logger.h"
 #include "sfloat.h"
 #include <algorithm>
 
 extern "C" uint32_t millis();
 
-StoveActuator::StoveActuator(DigiPot &pot, const ThrottleConfig &config)
-    : pot_(pot), config_(config) {}
+StoveActuator::StoveActuator(Potentiometer &potentiometer,
+                             DigitalWritePin &bypass_pin,
+                             const ThrottleConfig &config)
+    : potentiometer_(potentiometer), bypass_pin_(bypass_pin), config_(config), is_bypass_(false) {
+  setBypass();
+}
 
-void StoveActuator::setPosition(float position) {
-  pot_.setPosition(position);
-  is_direct_mode_ = true;
+void StoveActuator::setBypass() {
+  if (is_bypass_) {
+    return;
+  }
+  Log << "StoveActuator::setBypass()\n";
+  bypass_pin_.set(PinState::Low);
+  current_boost_ = config_.num_boosts;
+  is_bypass_ = true;
+  is_boost_pulse_active_ = false;
 }
 
 void StoveActuator::setThrottle(const StoveThrottle &throttle) {
-  if (is_direct_mode_ || !isNear(throttle, printed_throttle_)) {
+  if (is_bypass_ || !isNear(throttle, printed_throttle_)) {
     Log << "StoveActuator::setThrottle(/*base=*/" << throttle.base
         << ", /*boost=*/" << throttle.boost << ")\n";
     printed_throttle_ = throttle;
   }
 
-  float delta = (config_.boost - config_.max) / 2;
-  float below_max_level = config_.max - delta;
-  float above_max_level = config_.max + delta;
+  if (is_bypass_) {
+    bypass_pin_.set(PinState::High);
+    is_bypass_ = false;
+  }
 
-  float position = throttle.base * config_.max;
-  if (throttle.base >= 1.0f) {
-    position = above_max_level;
+  const float delta = (config_.boost - config_.max) / 2;
+  const float below_max_level = config_.max - delta;
+  const float above_max_level = config_.max + delta;
+
+  float position = std::min(throttle.base * config_.max, above_max_level);
+
+  if (throttle.boost == current_boost_) {
+    potentiometer_.setPosition(position);
+    return;
   }
 
   uint32_t now = millis();
-  if (is_direct_mode_ || throttle.boost < current_boost_) {
-    pot_.setPosition(std::min(below_max_level, position));
+  if (throttle.boost < current_boost_) {
+    potentiometer_.setPosition(std::min(below_max_level, position));
     current_boost_ = 0;
+    is_boost_pulse_active_ = false;
     last_boost_change_ms_ = now;
-    is_direct_mode_ = false;
+    return;
   }
 
   if (now - last_boost_change_ms_ < 1000) {
     return;
   }
 
-  if (throttle.boost == current_boost_) {
-    pot_.setPosition(position);
-    return;
-  }
-
-  if (pot_.getPosition() <= config_.boost) {
-    pot_.setPosition(1.0f);
+  if (is_boost_pulse_active_) {
+    potentiometer_.setPosition(above_max_level);
     ++current_boost_;
   } else {
-    pot_.setPosition(above_max_level);
+    potentiometer_.setPosition(1.0f);
   }
 
+  is_boost_pulse_active_ = !is_boost_pulse_active_;
   last_boost_change_ms_ = now;
 }

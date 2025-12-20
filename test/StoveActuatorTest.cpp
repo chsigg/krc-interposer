@@ -1,5 +1,5 @@
 #include "StoveActuator.h"
-#include "DigiPot.h"
+#include "Potentiometer.h"
 #include "DigitalWritePin.h"
 #include <ArduinoFake.h>
 #include <doctest.h>
@@ -10,98 +10,108 @@ TEST_CASE("StoveActuator Logic") {
 
   Fake(Method(ArduinoFake(), delayMicroseconds));
   Fake(Method(ArduinoFake(), millis));
-  Mock<DigiPot> pot_mock;
+  Mock<Potentiometer> potentiometer_mock;
+  Mock<DigitalWritePin> bypass_mock;
+
+  Fake(Method(bypass_mock, set));
+  Fake(Method(potentiometer_mock, setPosition));
 
   ThrottleConfig config{.min = 0.1f, .max = 0.8f, .boost = 0.9f, .num_boosts = 2};
 
-  StoveActuator actuator(pot_mock.get(), config);
-  // NOTE: After construction, actuator is in "direct mode"
+  StoveActuator actuator(potentiometer_mock.get(), bypass_mock.get(), config);
+  // NOTE: After construction, actuator is in bypass mode.
 
-  SUBCASE("setPosition sets direct mode and position") {
-    When(Method(pot_mock, setPosition)).AlwaysReturn();
-    actuator.setPosition(0.5f);
-    Verify(Method(pot_mock, setPosition).Using(0.5f)).Once();
+  SUBCASE("setBypass sets bypass mode") {
+    actuator.setBypass();
+    Verify(Method(bypass_mock, set).Using(PinState::Low));
 
-    // Calling setThrottle should now start in direct mode
+    // Calling setThrottle should now start in bypass
     StoveThrottle throttle{.base = 0.5f, .boost = 0};
     actuator.setThrottle(throttle);
 
-    // Enters direct mode, so it should set position based on throttle.
+    // Enters bypass, so it should set position based on throttle.
     // position = 0.5 * 0.8 = 0.4
     // below_max_level = 0.8 - (0.9-0.8)/2 = 0.75
     // setPosition(min(0.75, 0.4))
-    Verify(Method(pot_mock, setPosition).Using(0.4f)).Once();
+    Verify(Method(potentiometer_mock, setPosition).Using(0.4f)).Once();
   }
 
   SUBCASE("Normal operation (no boost)") {
     StoveThrottle throttle{.base = 0.5f, .boost = 0};
 
-    Fake(Method(pot_mock, setPosition));
     When(Method(ArduinoFake(), millis)).AlwaysReturn(2000);
 
-    // First call is in direct mode.
+    // First call is in bypass.
     actuator.setThrottle(throttle);
 
     // position = 0.5 * 0.8 = 0.4
     // below_max_level = 0.75
     // setPosition(min(0.75, 0.4)) -> 0.4
-    Verify(Method(pot_mock, setPosition).Using(0.4f)).Once();
+    Verify(Method(potentiometer_mock, setPosition).Using(0.4f)).Once();
 
-    // Call again, no longer in direct mode.
+    // Call again, no longer in bypass.
     // throttle.boost (0) == current_boost_ (0)
     When(Method(ArduinoFake(), millis)).AlwaysReturn(3001); // > 1000ms later
     actuator.setThrottle(throttle);
-    Verify(Method(pot_mock, setPosition).Using(0.4f)).Twice();
+    Verify(Method(potentiometer_mock, setPosition).Using(0.4f)).Twice();
   }
 
   SUBCASE("Boost activation") {
     StoveThrottle throttle{.base = 1.0f, .boost = 2};
+    StoveThrottle throttle_reset{.base = 1.0f, .boost = 0};
     const float below_max_level = config.max - (config.boost - config.max) / 2; // 0.75f
     const float above_max_level = config.max + (config.boost - config.max) / 2; // 0.85f
 
-    Fake(Method(pot_mock, setPosition));
-    When(Method(pot_mock, getPosition)).AlwaysReturn(below_max_level);
-
-    // 1. First call. is_direct_mode_ = true.
+    // 1. First call. is_bypass_ = true.
     When(Method(ArduinoFake(), millis)).Return(10000);
-    actuator.setThrottle(throttle);
-    // Enters direct mode, setting position and disabling direct mode
-    Verify(Method(pot_mock, setPosition).Using(below_max_level)).Once();
+    actuator.setThrottle(throttle_reset);
+    // Enters bypass, setting position and disabling bypass
+    Verify(Method(potentiometer_mock, setPosition).Using(below_max_level)).Once();
 
     // 2. Second call, start boosting.
     When(Method(ArduinoFake(), millis)).Return(11001);
     actuator.setThrottle(throttle);
-    Verify(Method(pot_mock, setPosition).Using(1.0f)).Once();
+    Verify(Method(potentiometer_mock, setPosition).Using(1.0f)).Once();
 
     // 3. Third call, continue boosting.
+    // Logic toggles: High -> Low (above_max_level)
     When(Method(ArduinoFake(), millis)).Return(12002);
     actuator.setThrottle(throttle);
-    Verify(Method(pot_mock, setPosition).Using(1.0f)).Twice();
+    Verify(Method(potentiometer_mock, setPosition).Using(above_max_level)).Once();
 
-    // 4. Fourth call, boost is done, set to base position
+    // 4. Fourth call, pulse high again to reach boost 2
     When(Method(ArduinoFake(), millis)).Return(13003);
     actuator.setThrottle(throttle);
-    Verify(Method(pot_mock, setPosition).Using(above_max_level)).Once();
+    Verify(Method(potentiometer_mock, setPosition).Using(1.0f)).Twice();
+
+    // 5. Fifth call, finish pulse, increment boost to 2.
+    // Logic toggles: High -> Low (above_max_level)
+    When(Method(ArduinoFake(), millis)).Return(14004);
+    actuator.setThrottle(throttle);
+    Verify(Method(potentiometer_mock, setPosition).Using(above_max_level)).Twice();
+
+    // 6. Sixth call, steady state (boost 2 == boost 2).
+    // Should maintain position (above_max_level) and NOT reset.
+    When(Method(ArduinoFake(), millis)).Return(15005);
+    actuator.setThrottle(throttle);
+    Verify(Method(potentiometer_mock, setPosition).Using(above_max_level)).Twice();
   }
 
   SUBCASE("Boost cancellation") {
-    Fake(Method(pot_mock, setPosition));
     const float position = 0.5f * config.max; // 0.4f
     const float below_max_level = config.max - (config.boost - config.max) / 2; // 0.75
 
-    When(Method(pot_mock, getPosition)).AlwaysReturn(below_max_level);
-
     // 1. Get to boost state first
     StoveThrottle boost_throttle{.base = 1.0f, .boost = 1};
-    // First call, direct mode.
+    // First call, bypass.
     When(Method(ArduinoFake(), millis)).AlwaysReturn(10000);
     actuator.setThrottle(boost_throttle);
-    Verify(Method(pot_mock, setPosition).Using(below_max_level)).Once();
+    Verify(Method(potentiometer_mock, setPosition).Using(below_max_level)).Once();
 
     // Second call, boosting
     When(Method(ArduinoFake(), millis)).AlwaysReturn(11001);
     actuator.setThrottle(boost_throttle);
-    Verify(Method(pot_mock, setPosition).Using(1.0f)).Once(); // current_boost becomes 1
+    Verify(Method(potentiometer_mock, setPosition).Using(1.0f)).Once(); // current_boost becomes 1
 
     // 2. Cancel boost
     StoveThrottle zero_throttle{.base = 0.5f, .boost = 0};
@@ -111,6 +121,6 @@ TEST_CASE("StoveActuator Logic") {
     // Logic: throttle.boost (0) < current_boost_ (1).
     // below_max_level = 0.75.
     // pot.setPosition(min(0.75, 0.4)) -> 0.4.
-    Verify(Method(pot_mock, setPosition).Using(position)).Once();
+    Verify(Method(potentiometer_mock, setPosition).Using(position)).Once();
   }
 }

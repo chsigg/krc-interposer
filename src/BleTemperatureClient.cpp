@@ -1,5 +1,4 @@
 #include "BleTemperatureClient.h"
-#include "Streaming.h"
 #include "Logger.h"
 #include "sfloat.h"
 #include <Arduino.h>

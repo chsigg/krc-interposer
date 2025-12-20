@@ -24,7 +24,7 @@ void StoveSupervisor::takeSnapshot() {
       (knob_pos * (stove_config_.max_temp_c - stove_config_.min_temp_c));
 
   controller_.setTargetTemp(target_temp);
-  is_direct_mode_ = false;
+  is_bypass_ = false;
 
   beeper_.beep(Beeper::Signal::ACCEPT);
 }
@@ -44,11 +44,11 @@ void StoveSupervisor::update() {
   if (dial_.isOff()) {
     analyzer_.clear();
     clear_timeout();
-    is_direct_mode_ = true;
+    is_bypass_ = true;
   }
 
-  if (is_direct_mode_) {
-    actuator_.setPosition(dial_.getPosition());
+  if (is_bypass_) {
+    actuator_.setBypass();
     return;
   }
 
@@ -56,7 +56,7 @@ void StoveSupervisor::update() {
     if (!is_analyzer_timed_out_) {
       Log << "StoveSupervisor::update() analyzer timed out\n";
       is_analyzer_timed_out_ = true;
-      actuator_.setPosition(0.0f);
+      actuator_.setBypass();
       beeper_.beep(Beeper::Signal::ERROR);
     }
     return;

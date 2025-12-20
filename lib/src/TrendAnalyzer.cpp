@@ -8,7 +8,7 @@
 
 void TrendAnalyzer::addReading(float value, uint32_t time_ms) {
   Log << "TrendAnalyzer::addReading(/*value=*/" << value << ", /*time_ms=*/"
-      << time_ms << "\n";
+      << time_ms << ")\n";
 
   Reading reading = {value, time_ms};
   auto begin = history_.begin();

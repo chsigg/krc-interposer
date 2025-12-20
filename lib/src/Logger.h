@@ -23,8 +23,6 @@ template <size_t N> Logger &operator<<(Logger &logger, const char (&msg)[N]) {
   return logger.log(msg, N - 1), logger;
 }
 
-#include <type_traits>
-
 template <typename T,
           typename = std::enable_if_t<std::is_integral_v<T>>>
 Logger &operator<<(Logger &logger, T value) {

@@ -33,6 +33,6 @@ private:
   TrendAnalyzer &analyzer_;
   const StoveConfig stove_config_;
   const ThrottleConfig throttle_config_;
-  bool is_direct_mode_ = true;
+  bool is_bypass_ = true;
   bool is_analyzer_timed_out_ = false;
 };

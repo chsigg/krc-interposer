@@ -1,23 +1,26 @@
 #pragma once
 
-#include "DigiPot.h"
+#include "Potentiometer.h"
+#include "DigitalWritePin.h"
 #include "StoveThrottle.h"
 #include <cstdint>
 
 class StoveActuator {
 public:
-  StoveActuator(DigiPot &pot, const ThrottleConfig &config);
+  StoveActuator(Potentiometer &potentiometer, DigitalWritePin &bypass, const ThrottleConfig &config);
   virtual ~StoveActuator() = default;
 
-  virtual void setPosition(float position);
+  virtual void setBypass();
   virtual void setThrottle(const StoveThrottle &throttle);
 
 private:
-  DigiPot &pot_;
+  Potentiometer &potentiometer_;
+  DigitalWritePin &bypass_pin_;
   const ThrottleConfig config_;
 
-  bool is_direct_mode_ = true;
-  uint32_t current_boost_ = 0;
+  bool is_bypass_;
+  uint32_t current_boost_;
+  bool is_boost_pulse_active_;
   uint32_t last_boost_change_ms_ = 0;
   StoveThrottle printed_throttle_ = {};
 };

@@ -1,8 +1,9 @@
 #include <Adafruit_TinyUSB.h>
 #include <Arduino.h>
-#include <Streaming.h>
+#include <Wire.h>
 #include <bluefruit.h>
 
+#include "AdafruitPotentiometer.h"
 #include "ArduinoAnalogReadPin.h"
 #include "ArduinoBuzzer.h"
 #include "ArduinoDigitalWritePin.h"
@@ -16,19 +17,18 @@
 #include "StoveActuator.h"
 #include "StoveDial.h"
 #include "StoveSupervisor.h"
-#include "Streaming.h"
 #include "ThermalController.h"
 #include "TrendAnalyzer.h"
 
 void delayUs(uint32_t us) { delayMicroseconds(us); }
 
-/* TODOs
-- turn off radio when stove dial is 0
-- when stove dial is turned on, turn on radio
-- ignore if lid is available within first 3 seconds
-- initial connect takes snapshot, reconnect doesn't
-- use shutter trigger to force snapshot
-*/
+constexpr int kStoveDialPin = A0;
+constexpr int kBypassPin = D1;
+constexpr int kSdaPin = D2;
+constexpr int kSclPin = D3;
+constexpr int kBuzzerPPin = D7;
+constexpr int kBuzzerNPin = D9;
+constexpr int kLedPin = LED_RED;
 
 // --- Hardware Instantiation ---
 
@@ -39,19 +39,19 @@ ArduinoLogger logger(Serial, bleuart);
 Logger &Log = logger;
 
 // Actuator Pins
-ArduinoDigitalWritePin inc(D1), ud(D2), cs(D3);
-DigiPot digi_pot(inc, ud, cs);
+ArduinoDigitalWritePin bypass_pin(kBypassPin);
+AdafruitPotentiometer potentiometer;
 ThrottleConfig throttle_config; // Defaults
-StoveActuator actuator(digi_pot, throttle_config);
+StoveActuator actuator(potentiometer, bypass_pin, throttle_config);
 
 // Sensor Pins
-ArduinoAnalogReadPin read_pin(A0, 1.0f / (1023.0f * 0.85f));
+ArduinoAnalogReadPin read_pin(kStoveDialPin, 1.0f / (1023.0f * 0.85f));
 StoveDial dial(read_pin, throttle_config);
 
 // Feedback
-ArduinoBuzzer buzzer(D7, D9);
+ArduinoBuzzer buzzer(kBuzzerPPin, kBuzzerNPin);
 Beeper beeper(buzzer);
-ArduinoDigitalWritePin red_led(LED_RED);
+ArduinoDigitalWritePin red_led(kLedPin);
 Blinker blinker(red_led);
 
 // Logic Modules
@@ -74,6 +74,11 @@ void setup() {
   while (!Serial && millis() < 5000) {
     delay(10);
   }
+
+  analogReadResolution(12);
+  Wire.setPins(kSdaPin, kSclPin);
+  potentiometer.begin();
+  bypass_pin.set(PinState::Low); // Fail-Safe: Bypass mode initially
 
   Log << "KRC Interceptor Starting...\n";
 
@@ -103,16 +108,11 @@ static void log(uint32_t time_ms) {
       << dial.getThrottle().boost << "\n";
   Log << "Controller: level " << controller.getLevel()
       << (controller.isLidOpen() ? " (lid open)" : "") << "\n";
-  Log << "DigiPot: position " << digi_pot.getPosition() << "\n";
 }
 
-void start() {
-  BleClient::start();
-}
+void start() { BleClient::start(); }
 
-void stop() {
-  BleClient::stop();
-}
+void stop() { BleClient::stop(); }
 
 void loop() {
   uint32_t now = millis();

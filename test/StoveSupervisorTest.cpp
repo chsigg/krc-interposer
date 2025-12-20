@@ -6,7 +6,7 @@
 #include "StoveActuator.h"
 #include "ThermalController.h"
 #include "Beeper.h"
-#include "DigiPot.h"
+#include "Potentiometer.h"
 #include "TrendAnalyzer.h"
 
 // Interfaces
@@ -47,7 +47,7 @@ TEST_CASE("StoveSupervisor Logic") {
   When(Method(dial_mock, getPosition)).AlwaysReturn(0.0f);
   When(Method(dial_mock, isOff)).AlwaysReturn(false);
   Fake(Method(dial_mock, update));
-  Fake(Method(actuator_mock, setPosition));
+  Fake(Method(actuator_mock, setBypass));
   Fake(Method(actuator_mock, setThrottle));
   Fake(Method(beeper_mock, beep));
   When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(0);
@@ -57,14 +57,14 @@ TEST_CASE("StoveSupervisor Logic") {
   Fake(Method(controller_mock, update));
 
 
-  SUBCASE("Starts in direct mode") {
+  SUBCASE("Starts in bypass") {
     When(Method(dial_mock, getPosition)).Return(0.7f);
     supervisor.update();
-    Verify(Method(actuator_mock, setPosition).Using(0.7f)).Once();
+    Verify(Method(actuator_mock, setBypass)).Once();
     Verify(Method(actuator_mock, setThrottle)).Never();
   }
 
-  SUBCASE("Snapshot exits direct mode and updates target temp") {
+  SUBCASE("Snapshot exits bypass and updates target temp") {
     // 1. Setup Dial to return 50%
     StoveThrottle throttle_50 = {0.5f, 0};
     When(Method(dial_mock, getThrottle)).AlwaysReturn(throttle_50);
@@ -81,13 +81,13 @@ TEST_CASE("StoveSupervisor Logic") {
     set_time(100);
     supervisor.update();
     Verify(Method(actuator_mock, setThrottle)).Once();
-    // Should not call setPosition because it's no longer in direct mode.
+    // Should not call setPosition because it's no longer in bypass.
     // The call during Dial Off check is a separate test.
-    Verify(Method(actuator_mock, setPosition)).Never();
+    Verify(Method(actuator_mock, setBypass)).Never();
   }
 
-  SUBCASE("Dial Off resets to direct mode") {
-    // 1. Take snapshot to exit direct mode
+  SUBCASE("Dial Off resets to bypass") {
+    // 1. Take snapshot to exit bypass
     supervisor.takeSnapshot();
 
     // 2. Set dial to off
@@ -95,13 +95,13 @@ TEST_CASE("StoveSupervisor Logic") {
     When(Method(dial_mock, getPosition)).Return(0.0f);
     supervisor.update();
 
-    // 3. Verify it cleared analyzer and went back to direct mode
+    // 3. Verify it cleared analyzer and went back to bypass
     Verify(Method(analyzer_mock, clear)).Once();
-    Verify(Method(actuator_mock, setPosition).Using(0.0f)).Once();
+    Verify(Method(actuator_mock, setBypass)).Once();
   }
 
   SUBCASE("Safety check for stale data") {
-    // 1. Exit direct mode and establish a healthy state
+    // 1. Exit bypass and establish a healthy state
     supervisor.takeSnapshot();
     Verify(Method(beeper_mock, beep).Using(Beeper::Signal::ACCEPT)).Once();
     set_time(1000);
@@ -113,7 +113,7 @@ TEST_CASE("StoveSupervisor Logic") {
 
     // 3. Expect Safety Shutdown
     supervisor.update();
-    Verify(Method(actuator_mock, setPosition).Using(0.0f)).Once();
+    Verify(Method(actuator_mock, setBypass)).Once();
     Verify(Method(beeper_mock, beep).Using(Beeper::Signal::ERROR)).Once();
 
     // 4. Check recovery
@@ -125,7 +125,7 @@ TEST_CASE("StoveSupervisor Logic") {
   }
 
   SUBCASE("PID integration") {
-    // 1. Exit direct mode
+    // 1. Exit bypass
     supervisor.takeSnapshot();
 
     // 2. Setup mocks for PID mode update
