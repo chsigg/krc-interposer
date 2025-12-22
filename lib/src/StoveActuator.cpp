@@ -10,7 +10,6 @@ StoveActuator::StoveActuator(Potentiometer &potentiometer,
                              DigitalWritePin &bypass_pin,
                              const ThrottleConfig &config)
     : potentiometer_(potentiometer), bypass_pin_(bypass_pin), config_(config), is_bypass_(false) {
-  setBypass();
 }
 
 void StoveActuator::setBypass() {

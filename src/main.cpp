@@ -75,12 +75,12 @@ void setup() {
     delay(10);
   }
 
+  Log << "KRC Interceptor Starting...\n";
+
   analogReadResolution(12);
+  actuator.setBypass();
   Wire.setPins(kSdaPin, kSclPin);
   potentiometer.begin();
-  bypass_pin.set(PinState::Low); // Fail-Safe: Bypass mode initially
-
-  Log << "KRC Interceptor Starting...\n";
 
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.Security.setIOCaps(false, false, false);
