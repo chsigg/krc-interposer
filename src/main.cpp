@@ -22,12 +22,12 @@
 
 void delayUs(uint32_t us) { delayMicroseconds(us); }
 
-constexpr int kStoveDialPin = A0;
-constexpr int kBypassPin = D1;
-constexpr int kSdaPin = D2;
-constexpr int kSclPin = D3;
-constexpr int kBuzzerPPin = D7;
-constexpr int kBuzzerNPin = D9;
+constexpr int kStoveDialPin = A4;
+constexpr int kBypassPin = D10;
+constexpr int kSdaPin = D3;
+constexpr int kSclPin = D2;
+constexpr int kBuzzerPPin = D0;
+constexpr int kBuzzerNPin = D1;
 constexpr int kLedPin = LED_RED;
 
 // --- Hardware Instantiation ---

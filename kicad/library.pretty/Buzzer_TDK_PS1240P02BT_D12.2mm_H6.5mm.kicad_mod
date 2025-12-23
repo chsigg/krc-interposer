@@ -6,9 +6,9 @@
 	(descr "Buzzer, D12.2mm height 6.5mm, https://product.tdk.com/info/en/catalog/datasheets/piezoelectronic_buzzer_ps_en.pdf")
 	(tags "buzzer")
 	(property "Reference" "REF**"
-		(at 2.5 -7.17 180)
+		(at 2.54 0 90)
 		(layer "F.SilkS")
-		(uuid "e9838117-c221-49c1-838c-7e8f6623c62a")
+		(uuid "588ac4c0-518d-49ad-a9c1-2d88974fe9d5")
 		(effects
 			(font
 				(size 1 1)
@@ -16,10 +16,10 @@
 			)
 		)
 	)
-	(property "Value" "Speaker"
-		(at 2.5 7.31 180)
+	(property "Value" "Buzzer"
+		(at 2.5 7.31 0)
 		(layer "F.Fab")
-		(uuid "19a39185-33fb-45a8-93ec-46c5752262ce")
+		(uuid "f0599edc-cdd3-4d80-8ad7-a5e0ad530447")
 		(effects
 			(font
 				(size 1 1)
@@ -32,7 +32,7 @@
 		(unlocked yes)
 		(layer "F.Fab")
 		(hide yes)
-		(uuid "d373d0a2-8bab-468b-b284-f190208546b7")
+		(uuid "660b8224-92c6-4e83-9dc0-d1ad23e30bb1")
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -45,7 +45,7 @@
 		(unlocked yes)
 		(layer "F.Fab")
 		(hide yes)
-		(uuid "3bc5c84e-280d-4b10-be5f-cf808b0d9a3a")
+		(uuid "2da6dc41-9728-4607-95b6-22c03e412410")
 		(effects
 			(font
 				(size 1.27 1.27)
@@ -63,7 +63,7 @@
 			(type solid)
 		)
 		(layer "F.SilkS")
-		(uuid "f25a6d39-8643-44ab-8c06-7f5535906da2")
+		(uuid "a144bf65-6b6d-468f-9792-27497caf42ef")
 	)
 	(fp_circle
 		(center 2.5 0)
@@ -74,7 +74,7 @@
 		)
 		(fill no)
 		(layer "F.SilkS")
-		(uuid "46ab5d9b-5e9d-47c4-adf0-e63cfb67d02d")
+		(uuid "08cf8bd2-bad3-47f3-8d5b-fd5d5d9fd460")
 	)
 	(fp_circle
 		(center 2.5 0)
@@ -85,7 +85,7 @@
 		)
 		(fill no)
 		(layer "F.CrtYd")
-		(uuid "802223c2-c3a7-4fb5-b3f4-39caaa09305b")
+		(uuid "eee8e3bf-84bf-47b3-88bc-c8c2a86a25b7")
 	)
 	(fp_line
 		(start -1.3 -1)
@@ -95,7 +95,7 @@
 			(type solid)
 		)
 		(layer "F.Fab")
-		(uuid "321f99ab-974a-4895-a582-a64be866867f")
+		(uuid "b1ff1deb-33b5-4901-8834-a59b306863b6")
 	)
 	(fp_circle
 		(center 2.5 0)
@@ -106,7 +106,7 @@
 		)
 		(fill no)
 		(layer "F.Fab")
-		(uuid "40fb9b49-1beb-42f7-aca3-aa977bb90307")
+		(uuid "3cf58f33-0473-4d3c-865e-59b0e6fa000d")
 	)
 	(fp_circle
 		(center 2.5 0)
@@ -117,12 +117,12 @@
 		)
 		(fill no)
 		(layer "F.Fab")
-		(uuid "8fa28cbb-566e-4d36-b7d4-59993361f893")
+		(uuid "5c9daf2e-9bed-4efd-997b-b27d6691c133")
 	)
 	(fp_text user "${REFERENCE}"
-		(at 2.5 -2.43 180)
+		(at 2.5 -2.43 0)
 		(layer "F.Fab")
-		(uuid "c4a7bdaa-b0db-4c03-ad57-0ad5faebba61")
+		(uuid "c80c6eb1-9e0e-4e21-9e46-51591ef42fb9")
 		(effects
 			(font
 				(size 1 1)
@@ -136,7 +136,7 @@
 		(drill 1)
 		(layers "*.Cu" "*.Mask")
 		(remove_unused_layers no)
-		(uuid "3ccc0704-8a76-4a5e-a7f8-c58ba1fcb8e0")
+		(uuid "9cf9f982-dc49-4fcb-8a74-12d7495ef171")
 	)
 	(pad "2" thru_hole circle
 		(at 5 0)
@@ -144,7 +144,7 @@
 		(drill 1)
 		(layers "*.Cu" "*.Mask")
 		(remove_unused_layers no)
-		(uuid "b6bb7063-b472-4fe8-bd4e-f32793c27356")
+		(uuid "11c21034-4a22-404b-8996-0f9bff7a22f8")
 	)
 	(embedded_fonts no)
 	(model "${KICAD9_3DMODEL_DIR}/Buzzer_Beeper.3dshapes/Buzzer_TDK_PS1240P02BT_D12.2mm_H6.5mm.step"
