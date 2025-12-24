@@ -17,7 +17,7 @@ std::array<uint8_t, 5> encodeIEEE11073(float temp) {
 
 float decodeIEEE11073(const uint8_t *data, uint16_t len) {
   if (len < 5) {
-    return 0.0f;
+    return 20.0f;
   }
   // data[0] is flags. Assuming Celsius.
   int32_t mantissa = (int32_t)(data[1] | (data[2] << 8) | (data[3] << 16));

@@ -75,8 +75,10 @@ void BleTelemetry::update() {
   auto controller_temp = encodeIEEE11073(thermal_controller_.getTargetTemp());
   target_temp_.notify(controller_temp.data(), controller_temp.size());
 
-  auto trend_temp = encodeIEEE11073(trend_analyzer_.getValue(millis()));
-  current_temp_.notify(trend_temp.data(), trend_temp.size());
+  if (trend_analyzer_.getLastUpdateMs() != 0) {
+    auto trend_temp = encodeIEEE11073(trend_analyzer_.getValue(millis()));
+    current_temp_.notify(trend_temp.data(), trend_temp.size());
+  }
 }
 
 void BleTelemetry::tempMeasurementWrittenCallback(uint16_t conn_hdl,

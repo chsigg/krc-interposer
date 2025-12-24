@@ -37,8 +37,10 @@ void TrendAnalyzer::addReading(float value, uint32_t time_ms) {
 }
 
 void TrendAnalyzer::clear() {
+  if (count_.exchange(0, std::memory_order_relaxed) == 0) {
+    return;
+  }
   Log << "TrendAnalyzer::clear()\n";
-  count_.store(0, std::memory_order_relaxed);
   results_[current_result_index_.load(std::memory_order_acquire)] = {};
 }
 

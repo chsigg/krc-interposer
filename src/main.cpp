@@ -102,8 +102,10 @@ static void log(uint32_t time_ms) {
   }
   last_log_ms = time_ms;
 
-  Log << "Analyzer: " << analyzer.getValue(last_log_ms) << "°C "
-      << analyzer.getSlope() << "°C/ms\n";
+  if (analyzer.getLastUpdateMs() != 0) {
+    Log << "Analyzer: " << analyzer.getValue(last_log_ms) << "°C "
+        << analyzer.getSlope() << "°C/ms\n";
+  }
   Log << "Dial: throttle " << dial.getThrottle().base << ", boost "
       << dial.getThrottle().boost << "\n";
   Log << "Controller: level " << controller.getLevel()
