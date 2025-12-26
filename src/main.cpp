@@ -11,10 +11,8 @@
 #include "ArduinoDigitalWritePin.h"
 #include "ArduinoLogger.h"
 #include "Beeper.h"
-#include "BleClient.h"
-#include "BleShutterClient.h"
 #include "BleTelemetry.h"
-#include "BleTemperatureClient.h"
+#include "BleThermometer.h"
 #include "StoveActuator.h"
 #include "StoveDial.h"
 #include "StoveSupervisor.h"
@@ -85,8 +83,7 @@ StoveSupervisor supervisor(dial, actuator, controller, beeper, analyzer,
                            stove_config, throttle_config);
 
 // BLE Modules
-BleTemperatureClient temp_client(supervisor, analyzer);
-BleShutterClient shutter_client(supervisor);
+BleThermometer thermometer(supervisor, analyzer);
 BleTelemetry telemetry(bleuart, controller, analyzer);
 
 void setup() {
@@ -109,7 +106,7 @@ void setup() {
   output_led_pin.begin();
   buzzer.begin();
   potentiometer.begin();
-  BleClient::begin();
+  thermometer.begin();
   telemetry.begin();
 
   actuator.setBypass();
@@ -148,7 +145,7 @@ void loop() {
   static bool started = false;
   if (bool should_start = now - dial_off_ms >= 2000; should_start != started) {
     started = should_start;
-    should_start ? BleClient::start() : BleClient::stop();
+    should_start ? thermometer.start() : thermometer.stop();
   }
 
   log(now);
