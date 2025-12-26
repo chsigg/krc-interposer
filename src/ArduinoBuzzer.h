@@ -21,7 +21,8 @@ public:
   void enable(int32_t frequency_hz) override {
     int16_t period = 8000000 / 2 / frequency_hz;
     // Normal and inverted polarity for channel 0 and 1
-    int16_t sequence[4] = {period, static_cast<int16_t>(period | 0x8000)};
+    sequence_[0] = period;
+    sequence_[1] = static_cast<int16_t>(period | 0x8000);
 
     pwm_->PSEL.OUT[0] = g_ADigitalPinMap[pin_p_];
     pwm_->PSEL.OUT[1] = g_ADigitalPinMap[pin_n_];
@@ -37,7 +38,7 @@ public:
     // Restart sequence automatically
     pwm_->SHORTS = PWM_SHORTS_LOOPSDONE_SEQSTART0_Msk;
 
-    pwm_->SEQ[0].PTR = (uint32_t)sequence;
+    pwm_->SEQ[0].PTR = (uint32_t)sequence_;
     pwm_->SEQ[0].CNT = 4;
     pwm_->SEQ[0].REFRESH = 0;
     pwm_->SEQ[0].ENDDELAY = 0;
@@ -59,4 +60,5 @@ private:
   NRF_PWM_Type* pwm_;
   const int pin_p_;
   const int pin_n_;
+  int16_t sequence_[4] = {};
 };

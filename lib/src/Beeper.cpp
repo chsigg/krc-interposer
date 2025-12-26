@@ -18,8 +18,8 @@ void Beeper::beep(Signal signal) {
 
 void Beeper::update() {
 
-  static constexpr uint16_t LOW_FREQ = 2000;
-  static constexpr uint16_t HIGH_FREQ = 4000;
+  static constexpr uint16_t LOW_FREQ = 800;
+  static constexpr uint16_t HIGH_FREQ = 1200;
   static constexpr uint16_t TONE_DURATION_MS = 100;
   static constexpr uint16_t SILENT_DURATION_MS = 1000;
 
