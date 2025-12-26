@@ -44,11 +44,11 @@ void StoveActuator::update() {
     return;
   }
 
-  const float delta = (config_.boost - config_.max) / 2;
-  const float below_max_level = config_.max - delta;
-  const float above_max_level = config_.max + delta;
+  const float delta = (config_.arm - config_.max) / 2;
+  const float deboost_position = config_.max - delta;
+  const float arm_position = config_.max + delta;
 
-  float position = std::min(target_throttle_.base * config_.max, above_max_level);
+  float position = std::min(target_throttle_.base * config_.max, arm_position);
 
   if (target_throttle_.boost == current_boost_) {
     potentiometer_.setPosition(position);
@@ -57,7 +57,7 @@ void StoveActuator::update() {
 
   uint32_t now = millis();
   if (target_throttle_.boost < current_boost_) {
-    potentiometer_.setPosition(std::min(below_max_level, position));
+    potentiometer_.setPosition(std::min(deboost_position, position));
     current_boost_ = 0;
     is_boost_pulse_active_ = false;
     last_boost_change_ms_ = now;
@@ -69,7 +69,7 @@ void StoveActuator::update() {
   }
 
   if (is_boost_pulse_active_) {
-    potentiometer_.setPosition(above_max_level);
+    potentiometer_.setPosition(arm_position);
     ++current_boost_;
   } else {
     potentiometer_.setPosition(1.0f);

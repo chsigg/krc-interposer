@@ -1,10 +1,12 @@
 #include <Adafruit_TinyUSB.h>
 #include <Arduino.h>
 #include <Wire.h>
+#include <algorithm>
 #include <bluefruit.h>
 
 #include "AdafruitPotentiometer.h"
 #include "ArduinoAnalogReadPin.h"
+#include "ArduinoAnalogWritePin.h"
 #include "ArduinoBuzzer.h"
 #include "ArduinoDigitalWritePin.h"
 #include "ArduinoLogger.h"
@@ -13,7 +15,6 @@
 #include "BleShutterClient.h"
 #include "BleTelemetry.h"
 #include "BleTemperatureClient.h"
-#include "Blinker.h"
 #include "StoveActuator.h"
 #include "StoveDial.h"
 #include "StoveSupervisor.h"
@@ -22,37 +23,56 @@
 
 void delayUs(uint32_t us) { delayMicroseconds(us); }
 
-constexpr int kStoveDialPin = A4;
-constexpr int kBypassPin = D10;
-constexpr int kSdaPin = D3;
-constexpr int kSclPin = D2;
 constexpr int kBuzzerPPin = D0;
 constexpr int kBuzzerNPin = D1;
-constexpr int kLedPin = LED_RED;
+constexpr int kSclPin = D2;
+constexpr int kSdaPin = D3;
+constexpr int kStoveDialPin = A4;
+constexpr int kOutputReadPin = A5;
+constexpr int kBypassPin = D10;
+constexpr int kLedRedPin = LED_RED;
+constexpr int kLedGreenPin = LED_GREEN;
+constexpr int kLedBluePin = LED_BLUE;
 
 // --- Hardware Instantiation ---
 
-// BLE UART Service
-BLEUart bleuart;
 // Tee stream for logging to Serial and BLE
+BLEUart bleuart;
 ArduinoLogger logger(Serial, bleuart);
 Logger &Log = logger;
 
 // Actuator Pins
-ArduinoDigitalWritePin bypass_pin(kBypassPin);
+class BypassPin : public DigitalWritePin {
+public:
+  void begin() {
+    write_pin_.begin();
+    led_pin_.begin();
+  }
+
+  void set(PinState state) const override {
+    write_pin_.set(state);
+    led_pin_.set(state == PinState::High ? PinState::Low : PinState::High);
+  }
+
+private:
+  ArduinoDigitalWritePin write_pin_{kBypassPin};
+  ArduinoDigitalWritePin led_pin_{kLedGreenPin};
+};
+
 AdafruitPotentiometer potentiometer;
+BypassPin bypass_pin;
 ThrottleConfig throttle_config; // Defaults
 StoveActuator actuator(potentiometer, bypass_pin, throttle_config);
 
 // Sensor Pins
-ArduinoAnalogReadPin read_pin(kStoveDialPin, 1.0f / (1023.0f * 0.85f));
-StoveDial dial(read_pin, throttle_config);
+ArduinoAnalogReadPin input_read_pin(kStoveDialPin, 1.0f / 4095.0f / 0.9f);
+StoveDial dial(input_read_pin, throttle_config);
 
 // Feedback
-ArduinoBuzzer buzzer(kBuzzerPPin, kBuzzerNPin);
+ArduinoBuzzer buzzer(NRF_PWM3, kBuzzerPPin, kBuzzerNPin);
 Beeper beeper(buzzer);
-ArduinoDigitalWritePin red_led(kLedPin);
-Blinker blinker(red_led);
+ArduinoAnalogReadPin output_read_pin(kOutputReadPin, 1.0f / 4095.0f);
+ArduinoAnalogWritePin output_led_pin(kLedRedPin);
 
 // Logic Modules
 TrendAnalyzer analyzer;
@@ -78,21 +98,21 @@ void setup() {
   Log << "KRC Interceptor Starting...\n";
 
   analogReadResolution(12);
-  actuator.setBypass();
   Wire.setPins(kSdaPin, kSclPin);
-  potentiometer.begin();
-
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.Security.setIOCaps(false, false, false);
   Bluefruit.Security.setMITM(false);
 
-  // Initialize BLE Central clients
+  bypass_pin.begin();
+  input_read_pin.begin();
+  output_read_pin.begin();
+  output_led_pin.begin();
+  buzzer.begin();
+  potentiometer.begin();
   BleClient::begin();
-
-  // Setup BLE Peripheral and start advertising
   telemetry.begin();
 
-  blinker.blink(Blinker::Signal::REPEAT);
+  actuator.setBypass();
 }
 
 static void log(uint32_t time_ms) {
@@ -112,30 +132,26 @@ static void log(uint32_t time_ms) {
       << (controller.isLidOpen() ? " (lid open)" : "") << "\n";
 }
 
-void start() { BleClient::start(); }
-
-void stop() { BleClient::stop(); }
-
 void loop() {
   uint32_t now = millis();
 
-  beeper.update();
-  blinker.update();
-
   supervisor.update();
+
+  float output_val = std::clamp(output_read_pin.read(), 0.0f, 1.0f);
+  output_led_pin.write(1.0f - output_val);
 
   static uint32_t dial_off_ms = now;
   if (dial.isOff()) {
     dial_off_ms = now;
   }
+
   static bool started = false;
   if (bool should_start = now - dial_off_ms >= 2000; should_start != started) {
     started = should_start;
-    should_start ? start() : stop();
+    should_start ? BleClient::start() : BleClient::stop();
   }
 
   log(now);
-
   telemetry.update();
 
   delay(10);

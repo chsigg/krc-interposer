@@ -30,6 +30,9 @@ void StoveSupervisor::takeSnapshot() {
 }
 
 void StoveSupervisor::update() {
+  beeper_.update();
+  dial_.update();
+
   auto clear_timeout = [&] {
     if (!is_analyzer_timed_out_) {
       return;
@@ -38,8 +41,6 @@ void StoveSupervisor::update() {
     beeper_.beep(Beeper::Signal::NONE);
     is_analyzer_timed_out_ = false;
   };
-
-  dial_.update();
 
   if (dial_.isOff()) {
     actuator_.setBypass();

@@ -5,7 +5,9 @@
 
 class ArduinoDigitalWritePin final : public DigitalWritePin {
 public:
-    explicit ArduinoDigitalWritePin(int pin) : pin_(pin) {
+    explicit ArduinoDigitalWritePin(int pin) : pin_(pin) {}
+
+    virtual void begin() {
         pinMode(pin_, OUTPUT);
     }
 

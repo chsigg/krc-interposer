@@ -31,13 +31,13 @@ void StoveDial::update() {
 
   std::unique_ptr<StoveDial, void (*)(StoveDial *)> printer(
       this, [](StoveDial *dial) {
-        if (isNear(dial->throttle_, dial->printed_throttle_)) {
+        if (std::fabs(dial->position_ - dial->printed_position_) < 0.02f) {
           return;
         }
         Log << "StoveDial::update() position " << dial->position_
-            << ", throttle " << dial->throttle_.base
-            << ", boost " << dial->throttle_.boost << "\n";
-        dial->printed_throttle_ = dial->throttle_;
+            << ", throttle " << dial->throttle_.base << ", boost "
+            << dial->throttle_.boost << "\n";
+        dial->printed_position_ = dial->position_;
       });
 
   if (position_ < config_.max) {
@@ -45,12 +45,13 @@ void StoveDial::update() {
     return;
   }
 
-  if (position_ < config_.boost) {
+  if (position_ < config_.arm) {
     boost_armed_ = true;
     return;
   }
 
-  if (!boost_armed_ || throttle_.boost >= config_.num_boosts) {
+  if (!boost_armed_ || position_ < config_.boost ||
+      throttle_.boost >= config_.num_boosts) {
     return;
   }
 

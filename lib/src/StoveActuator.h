@@ -7,7 +7,7 @@
 
 class StoveActuator {
 public:
-  StoveActuator(Potentiometer &potentiometer, DigitalWritePin &bypass, const ThrottleConfig &config);
+  StoveActuator(Potentiometer &potentiometer, DigitalWritePin &bypass_pin, const ThrottleConfig &config);
   virtual ~StoveActuator() = default;
 
   virtual void setBypass();

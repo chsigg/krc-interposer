@@ -24,7 +24,7 @@ TEST_CASE("StoveSupervisor Logic") {
   Fake(Method(ArduinoFake(), delayMicroseconds));
 
   // --- Configs ---
-  ThrottleConfig throttle_config{.num_boosts = 2};
+  ThrottleConfig throttle_config;
   StoveConfig stove_config;
 
   // --- Collaborator Mocks ---
@@ -53,6 +53,7 @@ TEST_CASE("StoveSupervisor Logic") {
   Fake(Method(actuator_mock, setThrottle));
   Fake(Method(actuator_mock, update));
   Fake(Method(beeper_mock, beep));
+  Fake(Method(beeper_mock, update));
   When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(0);
   Fake(Method(analyzer_mock, clear));
   When(Method(controller_mock, getLevel)).AlwaysReturn(0.0f);

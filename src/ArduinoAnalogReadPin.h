@@ -6,7 +6,9 @@
 class ArduinoAnalogReadPin final : public AnalogReadPin {
 public:
   explicit ArduinoAnalogReadPin(int pin, float scale)
-      : pin_(pin), scale_(scale) {
+      : pin_(pin), scale_(scale) {}
+
+  virtual void begin() {
     pinMode(pin_, INPUT);
   }
 

@@ -21,9 +21,9 @@ private:
   const ThrottleConfig config_;
 
   StoveThrottle throttle_ = {};
-  StoveThrottle printed_throttle_ = {};
 
   std::array<float, 4> last_readings_ = {};
   float position_ = 0.0f;
+  float printed_position_ = 0.0f;
   bool boost_armed_ = true;
 };
