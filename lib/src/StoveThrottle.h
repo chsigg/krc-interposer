@@ -9,6 +9,7 @@ struct ThrottleConfig {
   float max = 0.8f;    // boost 0 below, level 1.0 at and above
   float arm = 0.88f;   // arms boost below
   float boost = 0.92f; // increments boost above
+  float auto_pos = 0.96f; // auto mode above
   uint32_t num_boosts = 2;
 };
 

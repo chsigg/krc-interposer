@@ -66,9 +66,8 @@ static void trimDenyList() {
   sDenyListCount = std::distance(begin, end);
 }
 
-BleThermometer::BleThermometer(StoveSupervisor &supervisor,
-                               TrendAnalyzer &analyzer)
-    : supervisor_(supervisor), analyzer_(analyzer) {
+BleThermometer::BleThermometer(TrendAnalyzer &analyzer)
+    : analyzer_(analyzer) {
   assert(sBleThermometer == nullptr && "Too many BleThermometers");
   sBleThermometer = this;
 }
@@ -135,8 +134,6 @@ bool BleThermometer::connectCallback(const char *name) {
     if (strcmp(name, supported_name) != 0) {
       continue;
     }
-
-    supervisor_.takeSnapshot();
 
     return true;
   }

@@ -77,14 +77,14 @@ TrendAnalyzer analyzer;
 ThermalConfig thermal_config; // Defaults
 ThermalController controller(analyzer, thermal_config);
 
+// BLE Modules
+BleThermometer thermometer(analyzer);
+BleTelemetry telemetry(bleuart, controller, analyzer);
+
 // Supervisor
 StoveConfig stove_config;
 StoveSupervisor supervisor(dial, actuator, controller, beeper, analyzer,
-                           stove_config, throttle_config);
-
-// BLE Modules
-BleThermometer thermometer(supervisor, analyzer);
-BleTelemetry telemetry(bleuart, controller, analyzer);
+                           thermometer, stove_config, throttle_config);
 
 void setup() {
   Serial.begin(115200);
@@ -140,12 +140,6 @@ void loop() {
   static uint32_t dial_off_ms = now;
   if (dial.isOff()) {
     dial_off_ms = now;
-  }
-
-  static bool started = false;
-  if (bool should_start = now - dial_off_ms >= 2000; should_start != started) {
-    started = should_start;
-    should_start ? thermometer.start() : thermometer.stop();
   }
 
   log(now);

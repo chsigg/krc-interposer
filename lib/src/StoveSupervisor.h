@@ -3,36 +3,54 @@
 #include "Beeper.h"
 #include "StoveActuator.h"
 #include "StoveDial.h"
+#include "StoveThrottle.h"
+#include "Thermometer.h"
 #include "ThermalController.h"
 #include "TrendAnalyzer.h"
 
 struct StoveConfig {
   float min_temp_c = 20.0f;
-  float max_temp_c = 120.0f;
+  float max_temp_c = 250.0f;
   float base_power_ratio = 0.8f;
-  uint32_t data_timeout_ms = 60 * 1000; // 1 minute
+  uint32_t data_timeout_ms = 30000;
 };
 
-class StoveSupervisor final {
+class StoveSupervisor {
 public:
   StoveSupervisor(StoveDial &dial, StoveActuator &actuator,
                   ThermalController &controller, Beeper &beeper,
-                  TrendAnalyzer &analyzer, const StoveConfig &config,
+                  TrendAnalyzer &analyzer, Thermometer &thermometer,
+                  const StoveConfig &stove_config,
                   const ThrottleConfig &throttle_config);
+  virtual ~StoveSupervisor() = default;
 
   void update();
 
-  // Call this when Thermometer connects or Shutter triggers
-  void takeSnapshot();
-
 private:
+  enum class State {
+    SLEEP,      // Waiting for dial activity, BLE off
+    SCANNING,   // Waiting for thermometer connection
+    CONNECTED,  // Waiting for auto pos
+    ACTIVATING, // Waiting for 3sec
+    ACTIVE,     // PID control active
+    COOLDOWN    // Waiting for 30sec
+  };
+
+  void transitionTo(State new_state);
+  const char *getStateName(State state) const;
+
+  StoveThrottle pidToThrottle(float pid_level) const;
+
   StoveDial &dial_;
   StoveActuator &actuator_;
   ThermalController &controller_;
   Beeper &beeper_;
   TrendAnalyzer &analyzer_;
+  Thermometer &thermometer_;
   const StoveConfig stove_config_;
   const ThrottleConfig throttle_config_;
-  bool is_bypass_ = true;
-  bool is_analyzer_timed_out_ = false;
+
+  State state_ = State::SLEEP;
+  uint32_t state_entry_ms_ = 0;
+  bool has_beeped_connected_ = false;
 };

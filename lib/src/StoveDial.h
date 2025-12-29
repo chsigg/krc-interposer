@@ -12,6 +12,7 @@ public:
 
   virtual float getPosition() const { return position_; }
   virtual bool isOff() const { return position_ < config_.min; }
+  virtual bool isAutoPosition() const { return position_ > config_.auto_pos; }
   virtual StoveThrottle getThrottle() const;
 
   virtual void update();

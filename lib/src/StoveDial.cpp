@@ -11,6 +11,7 @@ StoveDial::StoveDial(const AnalogReadPin &pin, const ThrottleConfig &config)
     : pin_(pin), config_(config) {
   assert(config_.min < config_.max);
   assert(config_.max < config_.boost);
+  assert(config_.boost < config_.auto_pos);
 }
 
 void StoveDial::update() {

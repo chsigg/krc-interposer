@@ -9,18 +9,19 @@
 #include "Beeper.h"
 #include "Potentiometer.h"
 #include "TrendAnalyzer.h"
+#include "Thermometer.h"
 #include "Logger.h"
 
 // Interfaces
 #include "AnalogReadPin.h"
 #include "DigitalWritePin.h"
 #include "Buzzer.h"
+#include <cmath>
 
 using namespace fakeit;
 
 TEST_CASE("StoveSupervisor Logic") {
   // Global Mocks
-  Fake(Method(ArduinoFake(), millis));
   Fake(Method(ArduinoFake(), delayMicroseconds));
 
   // --- Configs ---
@@ -33,14 +34,18 @@ TEST_CASE("StoveSupervisor Logic") {
   Mock<Beeper> beeper_mock;
   Mock<TrendAnalyzer> analyzer_mock;
   Mock<ThermalController> controller_mock;
+  Mock<Thermometer> thermometer_mock;
 
   // --- DUT ---
   StoveSupervisor supervisor(dial_mock.get(), actuator_mock.get(),
                              controller_mock.get(), beeper_mock.get(),
-                             analyzer_mock.get(), stove_config, throttle_config);
+                             analyzer_mock.get(), thermometer_mock.get(),
+                             stove_config, throttle_config);
 
-  auto set_time = [](uint32_t t) {
-    When(Method(ArduinoFake(), millis)).AlwaysReturn(t);
+  uint32_t current_time_ms = 0;
+  When(Method(ArduinoFake(), millis)).AlwaysDo([&]() { return current_time_ms; });
+  auto set_time = [&](uint32_t t) {
+    current_time_ms = t;
   };
   set_time(0);
 
@@ -48,121 +53,218 @@ TEST_CASE("StoveSupervisor Logic") {
   When(Method(dial_mock, getThrottle)).AlwaysReturn(StoveThrottle{});
   When(Method(dial_mock, getPosition)).AlwaysReturn(0.0f);
   When(Method(dial_mock, isOff)).AlwaysReturn(false);
+  When(Method(dial_mock, isAutoPosition)).AlwaysReturn(false);
   Fake(Method(dial_mock, update));
   Fake(Method(actuator_mock, setBypass));
   Fake(Method(actuator_mock, setThrottle));
   Fake(Method(actuator_mock, update));
   Fake(Method(beeper_mock, beep));
   Fake(Method(beeper_mock, update));
-  When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(0);
-  Fake(Method(analyzer_mock, clear));
   When(Method(controller_mock, getLevel)).AlwaysReturn(0.0f);
   Fake(Method(controller_mock, setTargetTemp));
   Fake(Method(controller_mock, update));
+  Fake(Method(thermometer_mock, start));
+  Fake(Method(thermometer_mock, stop));
+  When(Method(thermometer_mock, connected)).AlwaysReturn(false);
 
+  auto reset_actuator = [&]() {
+    actuator_mock.Reset();
+    Fake(Method(actuator_mock, setBypass));
+    Fake(Method(actuator_mock, setThrottle));
+    Fake(Method(actuator_mock, update));
+  };
 
-  SUBCASE("Starts in bypass") {
-    When(Method(dial_mock, getPosition)).Return(0.7f);
-    supervisor.update();
-    Verify(Method(actuator_mock, setBypass)).Never();
-    Verify(Method(actuator_mock, setThrottle)).Never();
-  }
+  auto reset_thermometer = [&]() {
+    thermometer_mock.Reset();
+    Fake(Method(thermometer_mock, start));
+    Fake(Method(thermometer_mock, stop));
+    When(Method(thermometer_mock, connected)).AlwaysReturn(false);
+  };
 
-  SUBCASE("Snapshot exits bypass and updates target temp") {
-    // 1. Setup Dial to return 50%
-    StoveThrottle throttle_50 = {0.5f, 0};
-    When(Method(dial_mock, getThrottle)).AlwaysReturn(throttle_50);
+  auto reset_controller = [&]() {
+    controller_mock.Reset();
+    When(Method(controller_mock, getLevel)).AlwaysReturn(0.0f);
+    Fake(Method(controller_mock, setTargetTemp));
+    Fake(Method(controller_mock, update));
+  };
 
-    // 2. Take snapshot
-    supervisor.takeSnapshot();
-
-    // Verify Temp: 20 + 0.5 * (120 - 20) = 70.0
-    Verify(Method(controller_mock, setTargetTemp).Using(70.0f)).Once();
-    Verify(Method(beeper_mock, beep).Using(Beeper::Signal::ACCEPT)).Once();
-
-    // 3. Verify it's now in PID mode
-    When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(100);
-    set_time(100);
-    supervisor.update();
-    Verify(Method(actuator_mock, setThrottle)).Once();
-    // Should not call setPosition because it's no longer in bypass.
-    // The call during Dial Off check is a separate test.
-    Verify(Method(actuator_mock, setBypass)).Never();
-  }
-
-  SUBCASE("Dial Off resets to bypass") {
-    // 1. Take snapshot to exit bypass
-    supervisor.takeSnapshot();
-
-    // 2. Set dial to off
+  SUBCASE("Initial state is SLEEP") {
+    // In SLEEP, if dial is off, nothing happens.
     When(Method(dial_mock, isOff)).Return(true);
-    When(Method(dial_mock, getPosition)).Return(0.0f);
     supervisor.update();
 
-    // 3. Verify it cleared analyzer and went back to bypass
-    Verify(Method(analyzer_mock, clear)).Once();
+    Verify(Method(thermometer_mock, start)).Never();
+    Verify(Method(actuator_mock, setBypass)).Never();
+  }
+
+  SUBCASE("Transition SLEEP -> SCANNING") {
+    When(Method(dial_mock, isOff)).Return(false); // Dial turned on
+    When(Method(dial_mock, isAutoPosition)).Return(false);
+
+    supervisor.update();
+
+    Verify(Method(thermometer_mock, start)).Once();
     Verify(Method(actuator_mock, setBypass)).Once();
   }
 
-  SUBCASE("Safety check for stale data") {
-    // Capture arguments to avoid reference-to-stack issues with FakeIt
-    std::vector<StoveThrottle> throttles;
-    When(Method(actuator_mock, setThrottle)).AlwaysDo([&](const StoveThrottle &t) {
-      throttles.push_back(t);
-    });
-
-    // 1. Exit bypass and establish a healthy state
-    supervisor.takeSnapshot();
-    Verify(Method(beeper_mock, beep).Using(Beeper::Signal::ACCEPT)).Once();
-    set_time(1000);
-    When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(1000);
+  SUBCASE("SCANNING behavior") {
+    // Transition to SCANNING first
+    When(Method(dial_mock, isOff)).AlwaysReturn(false);
     supervisor.update();
-    CHECK(throttles.size() == 1);
+    Verify(Method(actuator_mock, setBypass)).Once(); // Entry
 
-    // 2. Setup Stale Data condition
-    set_time(1000 + stove_config.data_timeout_ms + 1);
+    // Clear history
+    reset_actuator();
+    reset_thermometer();
 
-    // 3. Expect Safety Shutdown
-    supervisor.update();
-    Verify(Method(actuator_mock, setBypass)).Never();
-    CHECK(throttles.size() == 2);
-    CHECK(isNear(throttles[1], StoveThrottle{}));
+    SUBCASE("Transition SCANNING -> COOLDOWN on dial off") {
+      When(Method(dial_mock, isOff)).AlwaysReturn(true);
+      supervisor.update();
+      // COOLDOWN entry sets bypass
+      Verify(Method(actuator_mock, setBypass)).Once();
+    }
 
-    Verify(Method(beeper_mock, beep).Using(Beeper::Signal::ERROR)).Once();
-
-    // 4. Check recovery
-    uint32_t recovery_time = 1000 + stove_config.data_timeout_ms + 2;
-    set_time(recovery_time);
-    When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(recovery_time);
-    supervisor.update();
-    Verify(Method(beeper_mock, beep).Using(Beeper::Signal::NONE)).Once();
+    SUBCASE("Transition SCANNING -> CONNECTED") {
+      When(Method(thermometer_mock, connected)).AlwaysReturn(true);
+      Fake(Method(beeper_mock, beep));
+      supervisor.update();
+      // CONNECTED entry sets bypass
+      Verify(Method(actuator_mock, setBypass)).Once();
+      Verify(Method(beeper_mock, beep).Using(Beeper::Signal::ACCEPT)).Once();
+    }
   }
 
-  SUBCASE("PID integration") {
-    // 1. Exit bypass
-    supervisor.takeSnapshot();
+  SUBCASE("CONNECTED behavior") {
+    // Get to CONNECTED
+    When(Method(dial_mock, isOff)).AlwaysReturn(false);
+    When(Method(thermometer_mock, connected)).AlwaysReturn(true);
+    supervisor.update(); // SLEEP -> SCANNING
+    supervisor.update(); // SCANNING -> CONNECTED
+    reset_actuator();
 
-    // 2. Setup mocks for PID mode update
-    When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(1000);
-    set_time(1000);
+    SUBCASE("Transition CONNECTED -> ACTIVATING") {
+      When(Method(dial_mock, isAutoPosition)).AlwaysReturn(true);
+      beeper_mock.Reset();
+      Fake(Method(beeper_mock, beep));
+      Fake(Method(beeper_mock, update));
 
-    // 3. Dial at 50% with boost allowed
-    StoveThrottle throttle_allow_boost = {0.5f, 2};
-    When(Method(dial_mock, getThrottle)).AlwaysReturn(throttle_allow_boost);
+      supervisor.update();
 
-    // 4. PID Output High (1.0) -> should translate to max boost
-    When(Method(controller_mock, getLevel)).AlwaysReturn(1.0f);
+      Verify(Method(beeper_mock, beep).Using(Beeper::Signal::ACCEPT)).Never();
+      Verify(Method(actuator_mock, setBypass)).Once();
+    }
 
-    StoveThrottle captured_throttle = {};
-    When(Method(actuator_mock, setThrottle)).Do([&](const StoveThrottle &t) {
-      captured_throttle = t;
-    });
+    SUBCASE("Reconnection without sleep does not beep") {
+      // Disconnect
+      When(Method(thermometer_mock, connected)).AlwaysReturn(false);
+      supervisor.update(); // SCANNING
 
-    supervisor.update();
+      // Reconnect
+      When(Method(thermometer_mock, connected)).AlwaysReturn(true);
+      beeper_mock.Reset();
+      Fake(Method(beeper_mock, beep));
+      Fake(Method(beeper_mock, update));
+      supervisor.update(); // CONNECTED
 
-    // 5. Verify throttle passed to actuator
-    // The boost calculation logic in supervisor should be respected.
-    CHECK(captured_throttle.base == 0.5f);
-    CHECK(captured_throttle.boost == 2);
+      Verify(Method(beeper_mock, beep)).Never();
+    }
+
+    SUBCASE("Transition CONNECTED -> SCANNING on disconnect") {
+      thermometer_mock.Reset();
+      Fake(Method(thermometer_mock, start));
+      Fake(Method(thermometer_mock, stop));
+      When(Method(thermometer_mock, connected)).AlwaysReturn(false);
+
+      supervisor.update();
+      Verify(Method(thermometer_mock, start)).Once();
+    }
+  }
+
+  SUBCASE("ACTIVATING behavior") {
+    // Get to ACTIVATING
+    When(Method(dial_mock, isOff)).AlwaysReturn(false);
+    When(Method(thermometer_mock, connected)).AlwaysReturn(true);
+    When(Method(dial_mock, isAutoPosition)).AlwaysReturn(true);
+    Fake(Method(beeper_mock, beep));
+    supervisor.update(); // SLEEP -> SCANNING
+    supervisor.update(); // SCANNING -> CONNECTED
+    supervisor.update(); // CONNECTED -> ACTIVATING
+    reset_actuator();
+
+    SUBCASE("Waits 3 seconds") {
+      set_time(2999);
+      supervisor.update();
+      Verify(Method(actuator_mock, setThrottle)).Never();
+    }
+
+    SUBCASE("Transition ACTIVATING -> ACTIVE") {
+      set_time(3001);
+      supervisor.update();
+      // ACTIVE entry sets throttle to 0
+      Verify(Method(actuator_mock, setThrottle)).Once();
+    }
+  }
+
+  SUBCASE("ACTIVE behavior") {
+    // Fast forward to ACTIVE
+    When(Method(dial_mock, isOff)).AlwaysReturn(false);
+    When(Method(thermometer_mock, connected)).AlwaysReturn(true);
+    When(Method(dial_mock, isAutoPosition)).AlwaysReturn(true);
+    Fake(Method(beeper_mock, beep));
+    supervisor.update(); // Wake
+    supervisor.update(); // Connected
+    supervisor.update(); // Activating
+    set_time(3001);
+    supervisor.update(); // Active
+
+    reset_actuator();
+    reset_controller();
+
+    SUBCASE("Holds 0 for 300ms") {
+      set_time(3001 + 299);
+      supervisor.update();
+      Verify(Method(actuator_mock, setThrottle)).Never(); // {0,0} set on entry
+    }
+
+    SUBCASE("PID Control Loop after 300ms") {
+      set_time(3001 + 301);
+      When(Method(dial_mock, getPosition)).AlwaysReturn(0.5f);
+      When(Method(controller_mock, getLevel)).AlwaysReturn(0.4f);
+
+      supervisor.update();
+
+      Verify(Method(controller_mock, setTargetTemp)).Once();
+      Verify(Method(controller_mock, update)).Once();
+      Verify(Method(actuator_mock, setThrottle)).Once();
+    }
+
+    SUBCASE("Transition ACTIVE -> COOLDOWN") {
+      When(Method(dial_mock, isOff)).AlwaysReturn(true);
+      supervisor.update();
+      // COOLDOWN entry sets bypass
+      Verify(Method(actuator_mock, setBypass)).Once();
+    }
+  }
+
+  SUBCASE("COOLDOWN behavior") {
+    // Get to COOLDOWN
+    When(Method(dial_mock, isOff)).AlwaysReturn(false);
+    supervisor.update(); // SCANNING
+    When(Method(dial_mock, isOff)).AlwaysReturn(true);
+    supervisor.update(); // COOLDOWN
+    reset_actuator();
+    reset_thermometer();
+
+    SUBCASE("Transition COOLDOWN -> SLEEP on timeout") {
+      set_time(30001);
+      supervisor.update();
+      Verify(Method(thermometer_mock, stop)).Once();
+    }
+
+    SUBCASE("Transition COOLDOWN -> SCANNING on dial on") {
+      When(Method(dial_mock, isOff)).AlwaysReturn(false);
+      supervisor.update();
+      Verify(Method(thermometer_mock, start)).Once();
+    }
   }
 }

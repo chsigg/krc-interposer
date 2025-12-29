@@ -1,12 +1,12 @@
 #pragma once
 
-#include "StoveSupervisor.h"
+#include "Thermometer.h"
 #include "TrendAnalyzer.h"
 #include <array>
 #include <bluefruit.h>
 #include <cstdint>
 
-class BleThermometer {
+class BleThermometer : public Thermometer {
 
   class IntermediateTemp final : public BLEClientCharacteristic {
   public:
@@ -16,13 +16,13 @@ class BleThermometer {
   };
 
 public:
-  BleThermometer(StoveSupervisor &supervisor, TrendAnalyzer &analyzer);
+  BleThermometer(TrendAnalyzer &analyzer);
   ~BleThermometer();
 
   void begin();
-  void start();
-  void stop();
-  bool connected();
+  void start() override;
+  void stop() override;
+  bool connected() override;
 
 private:
   bool connectCallback(const char *name);
@@ -34,7 +34,6 @@ private:
   static void globalNotifyCallback(BLEClientCharacteristic *chr, uint8_t *data,
                                    uint16_t len);
 
-  StoveSupervisor &supervisor_;
   TrendAnalyzer &analyzer_;
 
   BLEClientService service_= {UUID16_SVC_HEALTH_THERMOMETER};
