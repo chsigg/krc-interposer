@@ -25,11 +25,11 @@ void StoveActuator::setBypass() {
 
 void StoveActuator::setThrottle(const StoveThrottle &throttle) {
   if (is_bypass_ || !isNear(throttle, printed_throttle_)) {
-    Log << "StoveActuator::setThrottle(/*base=*/" << throttle.base
+    Log << "StoveActuator::setThrottle(/*position=*/" << throttle.position
         << ", /*boost=*/" << throttle.boost << ")\n";
     printed_throttle_ = throttle;
   }
-  target_throttle_ = throttle;
+  throttle_ = throttle;
 
   if (is_bypass_) {
     bypass_pin_.set(PinState::High);
@@ -45,19 +45,19 @@ void StoveActuator::update() {
   }
 
   const float delta = (config_.arm - config_.max) / 2;
-  const float deboost_position = config_.max - delta;
-  const float arm_position = config_.max + delta;
+  const float deboost_value = config_.max - delta;
+  const float arm_value = config_.max + delta;
 
-  float position = std::min(target_throttle_.base * config_.max, arm_position);
+  float value = std::min(throttle_.position * config_.max, arm_value);
 
-  if (target_throttle_.boost == current_boost_) {
-    potentiometer_.setPosition(position);
+  if (throttle_.boost == current_boost_) {
+    potentiometer_.setValue(value);
     return;
   }
 
   uint32_t now = millis();
-  if (target_throttle_.boost < current_boost_) {
-    potentiometer_.setPosition(std::min(deboost_position, position));
+  if (throttle_.boost < current_boost_) {
+    potentiometer_.setValue(std::min(deboost_value, value));
     current_boost_ = 0;
     is_boost_pulse_active_ = false;
     last_boost_change_ms_ = now;
@@ -69,10 +69,10 @@ void StoveActuator::update() {
   }
 
   if (is_boost_pulse_active_) {
-    potentiometer_.setPosition(arm_position);
+    potentiometer_.setValue(arm_value);
     ++current_boost_;
   } else {
-    potentiometer_.setPosition(1.0f);
+    potentiometer_.setValue(1.0f);
   }
 
   is_boost_pulse_active_ = !is_boost_pulse_active_;

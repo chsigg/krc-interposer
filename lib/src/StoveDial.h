@@ -10,21 +10,16 @@ public:
   StoveDial(const AnalogReadPin &pin, const ThrottleConfig &config);
   virtual ~StoveDial() = default;
 
-  virtual float getPosition() const { return position_; }
-  virtual bool isOff() const { return position_ < config_.min; }
-  virtual bool isAutoPosition() const { return position_ > config_.auto_pos; }
-  virtual StoveThrottle getThrottle() const;
-
+  virtual float getPosition() const;
+  virtual bool isOff() const { return value_ < config_.min; }
+  virtual bool isBoil() const { return value_ > config_.boil; }
   virtual void update();
 
 private:
   const AnalogReadPin &pin_;
   const ThrottleConfig config_;
 
-  StoveThrottle throttle_ = {};
-
   std::array<float, 4> last_readings_ = {};
-  float position_ = 0.0f;
-  float printed_position_ = 0.0f;
-  bool boost_armed_ = true;
+  float value_ = 0.0f;
+  float printed_value_ = 0.0f;
 };

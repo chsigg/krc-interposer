@@ -7,7 +7,7 @@ using namespace fakeit;
 
 TEST_CASE("StoveDial Logic") {
   Mock<AnalogReadPin> pin_mock;
-  ThrottleConfig config{.min = 0.1f, .max = 0.8f, .boost = 0.9f, .num_boosts = 2};
+  ThrottleConfig config;
   StoveDial dial(pin_mock.get(), config);
 
   // Helper to stabilize the moving average (size 4)
@@ -18,9 +18,13 @@ TEST_CASE("StoveDial Logic") {
     }
   };
 
+  SUBCASE("ThrottleConfig") {
+    auto values = {config.min, config.max, config.arm, config.boost, config.boil};
+    CHECK(std::is_sorted(values.begin(), values.end()));
+  }
+
   SUBCASE("Initialization") {
-    CHECK(dial.getThrottle().base == 0.0f);
-    CHECK(dial.getThrottle().boost == 0);
+    CHECK(dial.getPosition() == 0.0f);
   }
 
   SUBCASE("isOff Logic") {
@@ -40,53 +44,25 @@ TEST_CASE("StoveDial Logic") {
 
   SUBCASE("Throttle Mapping") {
     SUBCASE("Below min") {
-      set_reading(0.05f);
-      CHECK(dial.getThrottle().base == 0.0f);
+      set_reading(config.min / 2);
+      CHECK(dial.getPosition() == 0.0f);
     }
 
     SUBCASE("Linear range") {
-      set_reading(0.1f); // At min
-      // 0.1 / 0.8 = 0.125
-      CHECK(dial.getThrottle().base == doctest::Approx(0.125f));
+      set_reading(config.min); // At min
+      CHECK(dial.getPosition() == doctest::Approx(config.min / config.max));
 
-      set_reading(0.5f);
-      // 0.5 / 0.8 = 0.625
-      CHECK(dial.getThrottle().base == doctest::Approx(0.625f));
+      float mid = (config.min + config.max) / 2;
+      set_reading(mid);
+      CHECK(dial.getPosition() == doctest::Approx(mid / config.max));
 
-      set_reading(0.8f);
-      // 0.8 / 0.8 = 1.0
-      CHECK(dial.getThrottle().base == doctest::Approx(1.0));
+      set_reading(config.max);
+      CHECK(dial.getPosition() == doctest::Approx(1.0));
     }
 
     SUBCASE("Above max") {
-      set_reading(0.85f);
-      CHECK(dial.getThrottle().base == doctest::Approx(1.0f));
+      set_reading(config.max + 0.05f);
+      CHECK(dial.getPosition() == doctest::Approx(1.0f));
     }
-  }
-
-  SUBCASE("Boost Logic") {
-    // Start in normal range
-    set_reading(0.85f);
-    CHECK(dial.getThrottle().boost == 0);
-
-    // Enter boost zone
-    set_reading(0.95f);
-    CHECK(dial.getThrottle().boost == 1);
-
-    // Stay in boost zone (should not increment)
-    set_reading(0.91f);
-    CHECK(dial.getThrottle().boost == 1);
-
-    // Drop to re-arm zone (between max and boost)
-    set_reading(0.85f);
-    CHECK(dial.getThrottle().boost == 1);
-
-    // Enter boost zone again
-    set_reading(0.95f);
-    CHECK(dial.getThrottle().boost == 2);
-
-    // Reset by dropping below max
-    set_reading(0.75f);
-    CHECK(dial.getThrottle().boost == 0);
   }
 }

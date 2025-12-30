@@ -44,5 +44,5 @@ void ThermalController::update() {
   float current_temp = analyzer_.getValue(current_time_ms);
   float loss = (current_temp - config_.ambient_temp) * config_.heat_loss_factor;
 
-  level_ = std::clamp(p_out + loss, 0.0f, 1.0f);
+  power_ = std::clamp(p_out + loss, 0.0f, 1.0f);
 }

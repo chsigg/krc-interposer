@@ -6,7 +6,7 @@
 class AdafruitPotentiometer final : public Potentiometer {
 public:
     void begin();
-    void setPosition(float position) override;
+    void setValue(float value) override;
 
 private:
     Adafruit_DS3502 ds3502_;

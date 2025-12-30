@@ -20,13 +20,14 @@ public:
 
   virtual float getTargetTemp() const;
   virtual void setTargetTemp(float temp);
-  virtual float getLevel() const { return level_; }
+  virtual float getPower() const { return power_; }
   virtual bool isLidOpen() const { return lid_open_; }
 
 private:
   const TrendAnalyzer &analyzer_;
   const ThermalConfig config_;
+
   std::atomic<float> target_temp_;
-  float level_ = 0.0f;
+  float power_ = 0.0f;
   bool lid_open_ = false;
 };

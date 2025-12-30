@@ -23,6 +23,6 @@ private:
   uint32_t current_boost_;
   bool is_boost_pulse_active_;
   uint32_t last_boost_change_ms_ = 0;
+  StoveThrottle throttle_ = {};
   StoveThrottle printed_throttle_ = {};
-  StoveThrottle target_throttle_ = {};
 };

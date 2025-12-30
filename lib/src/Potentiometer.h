@@ -4,5 +4,5 @@ class Potentiometer {
 public:
     virtual ~Potentiometer() = default;
 
-    virtual void setPosition(float position) = 0;
+    virtual void setValue(float value) = 0;
 };
