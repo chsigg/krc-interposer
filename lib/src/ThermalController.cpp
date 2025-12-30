@@ -14,7 +14,10 @@ float ThermalController::getTargetTemp() const {
 }
 
 void ThermalController::setTargetTemp(float temp) {
-  Log << "ThermalController::setTargetTemp(" << temp << ")\n";
+  if (std::abs(temp - printed_target_temp_) > 1.0f) {
+    Log << "ThermalController::setTargetTemp(" << temp << ")\n";
+    printed_target_temp_ = temp;
+  }
   target_temp_.store(temp, std::memory_order_relaxed);
 }
 

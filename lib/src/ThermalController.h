@@ -28,6 +28,7 @@ private:
   const ThermalConfig config_;
 
   std::atomic<float> target_temp_;
+  float printed_target_temp_ = 0.0f;
   float power_ = 0.0f;
   bool lid_open_ = false;
 };

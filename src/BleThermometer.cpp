@@ -66,8 +66,7 @@ static void trimDenyList() {
   sDenyListCount = std::distance(begin, end);
 }
 
-BleThermometer::BleThermometer(TrendAnalyzer &analyzer)
-    : analyzer_(analyzer) {
+BleThermometer::BleThermometer(TrendAnalyzer &analyzer) : analyzer_(analyzer) {
   assert(sBleThermometer == nullptr && "Too many BleThermometers");
   sBleThermometer = this;
 }
@@ -78,6 +77,11 @@ BleThermometer::~BleThermometer() {
   }
 }
 
+static void globalDisconnectCallback(uint16_t conn_handle, uint8_t reason) {
+  Log << "globalDisconnectCallback(/*handle=*/" << conn_handle
+      << ", /*reason=*/" << reason << ")\n";
+}
+
 void BleThermometer::begin() {
   Log << "BleThermometer::begin()\n";
 
@@ -85,6 +89,7 @@ void BleThermometer::begin() {
   Bluefruit.setName("KRC Interposer");
 
   Bluefruit.Central.setConnectCallback(globalConnectCallback);
+  Bluefruit.Central.setDisconnectCallback(globalDisconnectCallback);
 
   service_.begin();
   char_.setNotifyCallback(globalNotifyCallback);
@@ -92,33 +97,28 @@ void BleThermometer::begin() {
 
   Bluefruit.Scanner.setRxCallback(globalScanCallback);
   Bluefruit.Scanner.setInterval(160, 80); // Scan every 200ms for 100ms
-  Bluefruit.Scanner.restartOnDisconnect(false);
   Bluefruit.Scanner.useActiveScan(false);
+  Bluefruit.Scanner.filterUuid(service_.uuid);
 }
 
 bool BleThermometer::connected() { return service_.discovered(); }
 
 void BleThermometer::start() {
   Log << "BleThermometer::start()\n";
-
   if (service_.discovered()) {
     return;
   }
-
-  Bluefruit.Central.setDisconnectCallback(globalDisconnectCallback);
-
   if (Bluefruit.Scanner.isRunning()) {
     Bluefruit.Scanner.stop();
   }
-  Bluefruit.Scanner.filterUuid(service_.uuid);
+  Bluefruit.Scanner.restartOnDisconnect(true);
   Bluefruit.Scanner.start(0);
 }
 
 void BleThermometer::stop() {
   Log << "BleThermometer::stop()\n";
 
-  Bluefruit.Central.setDisconnectCallback(nullptr);
-
+  Bluefruit.Scanner.restartOnDisconnect(false);
   Bluefruit.Scanner.stop();
   if (service_.discovered()) {
     if (BLEConnection *conn = Bluefruit.Connection(service_.connHandle())) {
@@ -134,7 +134,6 @@ bool BleThermometer::connectCallback(const char *name) {
     if (strcmp(name, supported_name) != 0) {
       continue;
     }
-
     return true;
   }
 
@@ -163,9 +162,9 @@ void BleThermometer::globalScanCallback(ble_gap_evt_adv_report_t *report) {
 
   std::unique_ptr<BLEScanner, void (*)(BLEScanner *)> resumer(
       &Bluefruit.Scanner, [](BLEScanner *scanner) {
-    Log << "  Resuming scanner\n";
-    scanner->resume();
-  });
+        Log << "  Resuming scanner\n";
+        scanner->resume();
+      });
 
   trimDenyList();
   for (size_t i = 0; i < sDenyListCount; ++i) {
@@ -205,12 +204,20 @@ void BleThermometer::globalConnectCallback(uint16_t conn_handle) {
   conn->getPeerName(name.data(), name.size() - 1);
   Log << "BleThermometer::globalConnectCallback(" << name.data() << ")\n";
 
-  auto disconnect_on_exit = [](BLEConnection *connection) { connection->disconnect(); };
   std::unique_ptr<BLEConnection, void (*)(BLEConnection *)> disconnector(
-      conn, disconnect_on_exit);
+      conn, [](BLEConnection *connection) { connection->disconnect(); });
 
-  if (!sBleThermometer || sBleThermometer->service_.discovered() ||
-      !sBleThermometer->service_.discover(conn_handle)) {
+  if (!sBleThermometer) {
+    return;
+  }
+
+  if (sBleThermometer->service_.discovered()) {
+    Log << "  Service already discovered\n";
+    return;
+  }
+
+  if (!sBleThermometer->service_.discover(conn_handle)) {
+    Log << "  Service discovery failed\n";
     return;
   }
 
@@ -234,17 +241,6 @@ void BleThermometer::globalConnectCallback(uint16_t conn_handle) {
 
   disconnector.release();
   Log << "  Connected\n";
-  sBleThermometer->start();
-}
-
-void BleThermometer::globalDisconnectCallback(uint16_t conn_handle,
-                                              uint8_t reason) {
-  Log << "BleThermometer::globalDisconnectCallback(/*handle=*/" << conn_handle
-      << ", /*reason=*/" << reason << ")\n";
-
-  if (sBleThermometer) {
-    sBleThermometer->start();
-  }
 }
 
 void BleThermometer::globalNotifyCallback(

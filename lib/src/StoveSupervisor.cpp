@@ -32,22 +32,14 @@ void StoveSupervisor::update() {
   constexpr uint32_t disconnected_after_ms = 30 * 1000;
   constexpr uint32_t sleep_after_ms = 10 * 1000;
 
-  switch (state_) {
-  case State::SLEEP:
-  case State::COOLDOWN:
+  if (state_ == State::SLEEP || state_ == State::COOLDOWN) {
     if (!dial_.isOff()) {
       return transitionTo(State::SCANNING);
     }
-    break;
-  case State::SCANNING:
-  case State::CONNECTED:
-  case State::ACTIVATING:
-  case State::ACTIVE:
-  case State::DISCONNECTED:
+  } else {
     if (dial_.isOff() && now - dial_off_start_ms_ > cooldown_after_ms) {
       return transitionTo(State::COOLDOWN);
     }
-    break;
   }
 
   switch (state_) {
@@ -112,32 +104,39 @@ void StoveSupervisor::transitionTo(State new_state) {
   state_ = new_state;
   state_entry_ms_ = millis();
 
-  if (state_ == State::ACTIVE) {
-    float position = std::max(0.0f, dial_.getPosition() - 0.1f);
-    actuator_.setThrottle({position, 0});
-    dial_target_temp_ = -1.0f;
-  } else if (state_ == State::DISCONNECTED) {
-    actuator_.setThrottle({0.0f, 0});
-    beeper_.beep(Beeper::Signal::ERROR);
-  } else {
+  if (state_ != State::ACTIVE && state_ != State::DISCONNECTED) {
     actuator_.setBypass();
   }
 
-  if (state_ == State::SCANNING) {
-    thermometer_.start();
-  }
-
-  if (state_ == State::SLEEP) {
+  switch (state_) {
+  case State::SLEEP:
     thermometer_.stop();
     beeper_.beep(Beeper::Signal::REJECT);
     has_beeped_connected_ = false;
-  }
-
-  if (state_ == State::CONNECTED) {
+    break;
+  case State::SCANNING:
+    thermometer_.start();
+    break;
+  case State::CONNECTED:
     if (!has_beeped_connected_) {
       beeper_.beep(Beeper::Signal::ACCEPT);
     }
     has_beeped_connected_ = true;
+    break;
+  case State::ACTIVATING:
+    break;
+  case State::ACTIVE:
+    actuator_.setThrottle({std::max(0.0f, dial_.getPosition() - 0.1f), 0});
+    dial_target_temp_ = -1.0f;
+    beeper_.beep(Beeper::Signal::NONE);
+    break;
+  case State::DISCONNECTED:
+    actuator_.setThrottle({0.0f, 0});
+    beeper_.beep(Beeper::Signal::ERROR);
+    break;
+  case State::COOLDOWN:
+    beeper_.beep(Beeper::Signal::NONE);
+    break;
   }
 }
 

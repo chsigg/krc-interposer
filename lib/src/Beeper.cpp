@@ -20,7 +20,7 @@ void Beeper::update() {
 
   static constexpr uint16_t LOW_FREQ = 800;
   static constexpr uint16_t HIGH_FREQ = 1200;
-  static constexpr uint16_t TONE_DURATION_MS = 100;
+  static constexpr uint16_t TONE_DURATION_MS = 200;
   static constexpr uint16_t SILENT_DURATION_MS = 1000;
 
   static constexpr struct {

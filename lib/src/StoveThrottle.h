@@ -7,7 +7,7 @@
 
 // Maps analog pin reading to stove throttle
 struct ThrottleConfig {
-  float min = 0.1f;    // level min, level 0.0 below
+  float min = 0.05f;    // level min, level 0.0 below
   float max = 0.7f;    // boost 0 below, level 1.0 at and above
   float arm = 0.78f;   // arms boost below
   float boost = 0.82f; // increments boost above
