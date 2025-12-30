@@ -85,9 +85,6 @@ static void globalDisconnectCallback(uint16_t conn_handle, uint8_t reason) {
 void BleThermometer::begin() {
   Log << "BleThermometer::begin()\n";
 
-  Bluefruit.begin(1, 1);
-  Bluefruit.setName("KRC Interposer");
-
   Bluefruit.Central.setConnectCallback(globalConnectCallback);
   Bluefruit.Central.setDisconnectCallback(globalDisconnectCallback);
 

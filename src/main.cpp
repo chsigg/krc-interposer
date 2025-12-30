@@ -34,6 +34,8 @@ constexpr int kLedBluePin = LED_BLUE;
 
 // --- Hardware Instantiation ---
 
+BLEDfu bledfu;
+
 // Tee stream for logging to Serial and BLE
 BLEUart bleuart;
 ArduinoLogger logger(Serial, bleuart);
@@ -96,9 +98,6 @@ void setup() {
 
   analogReadResolution(12);
   Wire.setPins(kSdaPin, kSclPin);
-  Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
-  Bluefruit.Security.setIOCaps(false, false, false);
-  Bluefruit.Security.setMITM(false);
 
   bypass_pin.begin();
   input_read_pin.begin();
@@ -106,6 +105,14 @@ void setup() {
   output_led_pin.begin();
   buzzer.begin();
   potentiometer.begin();
+
+  Bluefruit.begin(1, 1);
+  Bluefruit.setName("KRC Interposer");
+  Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
+  Bluefruit.Security.setIOCaps(false, false, false);
+  Bluefruit.Security.setMITM(false);
+
+  bledfu.begin();
   thermometer.begin();
   telemetry.begin();
 
