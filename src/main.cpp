@@ -26,7 +26,6 @@ constexpr int kBuzzerNPin = D1;
 constexpr int kSclPin = D2;
 constexpr int kSdaPin = D3;
 constexpr int kStoveDialPin = A4;
-constexpr int kOutputReadPin = A5;
 constexpr int kBypassPin = D10;
 constexpr int kLedRedPin = LED_RED;
 constexpr int kLedGreenPin = LED_GREEN;
@@ -71,8 +70,7 @@ StoveDial dial(input_read_pin, throttle_config);
 // Feedback
 ArduinoBuzzer buzzer(NRF_PWM3, kBuzzerPPin, kBuzzerNPin);
 Beeper beeper(buzzer);
-ArduinoAnalogReadPin output_read_pin(kOutputReadPin, 1.0f / 4095.0f);
-ArduinoAnalogWritePin output_led_pin(kLedRedPin);
+ArduinoAnalogWritePin input_led_pin(kLedRedPin);
 
 // Logic Modules
 TrendAnalyzer analyzer;
@@ -101,8 +99,7 @@ void setup() {
 
   bypass_pin.begin();
   input_read_pin.begin();
-  output_read_pin.begin();
-  output_led_pin.begin();
+  input_led_pin.begin();
   buzzer.begin();
   potentiometer.begin();
 
@@ -140,8 +137,8 @@ void loop() {
 
   supervisor.update();
 
-  float output_val = std::clamp(output_read_pin.read(), 0.0f, 1.0f);
-  output_led_pin.write(1.0f - output_val);
+  float input_val = std::clamp(input_read_pin.read(), 0.0f, 1.0f);
+  input_led_pin.write(1.0f - input_val);
 
   log(now);
   telemetry.update();
