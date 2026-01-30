@@ -11,7 +11,6 @@
 struct StoveConfig {
   float min_temp_c = 30.0f;
   float max_temp_c = 120.0f;
-  float base_power_ratio = 0.8f;
 };
 
 class StoveSupervisor {
@@ -39,8 +38,6 @@ private:
   void transitionTo(State new_state);
   const char *getStateName(State state) const;
 
-  StoveThrottle pidToThrottle(float power) const;
-
   StoveDial &dial_;
   StoveActuator &actuator_;
   ThermalController &controller_;
@@ -55,4 +52,5 @@ private:
   uint32_t dial_off_start_ms_ = 0;
   bool has_beeped_connected_ = false;
   float dial_target_temp_ = -1.0f;
+  bool is_temp_low_ = false;
 };

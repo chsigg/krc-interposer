@@ -1,5 +1,6 @@
 #include "StoveSupervisor.h"
 #include "Logger.h"
+#include "StoveThrottle.h"
 #include <algorithm>
 #include <cmath>
 
@@ -78,7 +79,19 @@ void StoveSupervisor::update() {
       dial_target_temp_ = dial_target_temp;
     }
     controller_.update();
-    actuator_.setThrottle(pidToThrottle(controller_.getPower()));
+
+    // Engage boost if we are > 20°C away (approx 60s of heating).
+    // Disengage boost if we are < 10°C away and hand over to PID.
+    is_temp_low_ = [&] {
+      if (controller_.isLidOpen()) {
+        return false;
+      }
+      float delta_temp = controller_.getTargetTemp() - analyzer_.getValue(now);
+      return delta_temp >= (is_temp_low_ ? 10.0f : 20.0f);
+    }();
+
+    actuator_.setThrottle({is_temp_low_ ? 1.0f : controller_.getPower(),
+                           is_temp_low_ ? throttle_config_.num_boosts : 0});
     break;
   case State::DISCONNECTED:
     if (now - analyzer_.getLastUpdateMs() < disconnected_after_ms) {
@@ -158,15 +171,4 @@ const char *StoveSupervisor::getStateName(State state) const {
     return "COOLDOWN";
   }
   return "UNKNOWN";
-}
-
-StoveThrottle StoveSupervisor::pidToThrottle(float power) const {
-  if (power <= stove_config_.base_power_ratio) {
-    return {power / stove_config_.base_power_ratio};
-  }
-
-  float boost_range = 1.0f - stove_config_.base_power_ratio;
-  float boost_level = (power - stove_config_.base_power_ratio) / boost_range;
-  long boost_value = std::lroundf(boost_level * throttle_config_.num_boosts);
-  return {1.0f, static_cast<uint32_t>(boost_value)};
 }

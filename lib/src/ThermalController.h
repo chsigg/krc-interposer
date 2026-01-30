@@ -5,7 +5,7 @@
 
 struct ThermalConfig {
   float p_factor = 0.1f;              // P-factor (1/K)
-  float heat_loss_factor = 0.01f;     // Heat loss factor (1/K)
+  float heat_loss_factor = 0.003f;    // Heat loss factor (1/K)
   uint32_t system_lag_ms = 10000;     // Lookahead time (ms)
   float lid_open_threshold = 0.0005f; // Threshold for lid open (°C/ms)
   float ambient_temp = 20.0f;         // Ambient temperature (°C)

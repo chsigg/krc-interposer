@@ -11,7 +11,7 @@ public:
   virtual ~StoveActuator() = default;
 
   virtual void setBypass();
-  virtual void setThrottle(const StoveThrottle &throttle);
+  virtual void setThrottle(StoveThrottle throttle);
   virtual void update();
 
 private:

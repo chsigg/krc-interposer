@@ -8,7 +8,7 @@ using namespace fakeit;
 namespace {
 constexpr uint16_t LOW_FREQ = 800;
 constexpr uint16_t HIGH_FREQ = 1200;
-constexpr uint8_t TONE_DURATION_MS = 100;
+constexpr uint16_t TONE_DURATION_MS = 200;
 } // namespace
 
 TEST_CASE("Beeper Logic") {

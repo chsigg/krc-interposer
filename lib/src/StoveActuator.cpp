@@ -23,7 +23,7 @@ void StoveActuator::setBypass() {
   is_boost_pulse_active_ = false;
 }
 
-void StoveActuator::setThrottle(const StoveThrottle &throttle) {
+void StoveActuator::setThrottle(StoveThrottle throttle) {
   if (is_bypass_ || !isNear(throttle, printed_throttle_)) {
     Log << "StoveActuator::setThrottle(/*position=*/" << throttle.position
         << ", /*boost=*/" << throttle.boost << ")\n";
