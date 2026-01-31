@@ -64,7 +64,7 @@ ThrottleConfig throttle_config; // Defaults
 StoveActuator actuator(potentiometer, bypass_pin, throttle_config);
 
 // Sensor Pins
-ArduinoAnalogReadPin input_read_pin(kStoveDialPin, 1.0f / 4095.0f / 0.9f);
+ArduinoAnalogReadPin input_read_pin(kStoveDialPin, 1.25f / 4095.0f);
 StoveDial dial(input_read_pin, throttle_config);
 
 // Feedback
@@ -103,9 +103,9 @@ void setup() {
   buzzer.begin();
   potentiometer.begin();
 
+  Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.begin(1, 1);
   Bluefruit.setName("KRC Interposer");
-  Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.Security.setIOCaps(false, false, false);
   Bluefruit.Security.setMITM(false);
 

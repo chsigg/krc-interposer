@@ -55,7 +55,6 @@ TEST_CASE("StoveActuator Logic") {
   SUBCASE("Boost activation") {
     StoveThrottle throttle{.position = 1.0f, .boost = 2};
     StoveThrottle throttle_reset{.position = 1.0f, .boost = 0};
-    const float arm_value = config.max + (config.arm - config.max) / 2; // 0.84f
 
     // 1. First call. is_bypass_ = true.
     When(Method(ArduinoFake(), millis)).Return(10000);
@@ -64,58 +63,58 @@ TEST_CASE("StoveActuator Logic") {
     Verify(Method(potentiometer_mock, setValue).Using(config.max)).Once();
 
     // 2. Second call, start boosting.
+    // Logic: setValue(config.boost)
     When(Method(ArduinoFake(), millis)).Return(11001);
     actuator.setThrottle(throttle);
-    Verify(Method(potentiometer_mock, setValue).Using(1.0f)).Once();
+    Verify(Method(potentiometer_mock, setValue).Using(config.boost)).Once();
 
     // 3. Third call, continue boosting.
-    // Logic toggles: High -> Low (arm_value)
+    // Logic: setValue(config.max), ++current_boost_
     When(Method(ArduinoFake(), millis)).Return(12002);
     actuator.setThrottle(throttle);
-    Verify(Method(potentiometer_mock, setValue).Using(arm_value)).Once();
+    Verify(Method(potentiometer_mock, setValue).Using(config.max)).Twice();
 
     // 4. Fourth call, pulse high again to reach boost 2
+    // Logic: setValue(config.boost)
     When(Method(ArduinoFake(), millis)).Return(13003);
     actuator.setThrottle(throttle);
-    Verify(Method(potentiometer_mock, setValue).Using(1.0f)).Twice();
+    Verify(Method(potentiometer_mock, setValue).Using(config.boost)).Twice();
 
     // 5. Fifth call, finish pulse, increment boost to 2.
-    // Logic toggles: High -> Low (arm_value)
+    // Logic: setValue(config.max), ++current_boost_
     When(Method(ArduinoFake(), millis)).Return(14004);
     actuator.setThrottle(throttle);
-    Verify(Method(potentiometer_mock, setValue).Using(arm_value)).Twice();
+    Verify(Method(potentiometer_mock, setValue).Using(config.max)).Exactly(3);
 
     // 6. Sixth call, steady state (boost 2 == boost 2).
-    // Should maintain value (arm_value) and NOT reset.
+    // Should maintain value (config.max) and NOT reset.
     When(Method(ArduinoFake(), millis)).Return(15005);
     actuator.setThrottle(throttle);
-    Verify(Method(potentiometer_mock, setValue).Using(arm_value)).Twice();
+    Verify(Method(potentiometer_mock, setValue).Using(config.max)).Exactly(4);
   }
 
   SUBCASE("Boost cancellation") {
     const float value = 0.5f * config.max;
-    const float deboost_value = config.max - (config.arm - config.max) / 2; // 0.76
 
     // 1. Get to boost state first
     StoveThrottle boost_throttle{.position = 1.0f, .boost = 1};
-    // First call, bypass.
+    // First call, start boosting
     When(Method(ArduinoFake(), millis)).AlwaysReturn(10000);
     actuator.setThrottle(boost_throttle);
-    Verify(Method(potentiometer_mock, setValue).Using(deboost_value)).Once();
+    Verify(Method(potentiometer_mock, setValue).Using(config.boost)).Once();
 
-    // Second call, boosting
+    // Second call, finish pulse, current_boost becomes 1
     When(Method(ArduinoFake(), millis)).AlwaysReturn(11001);
     actuator.setThrottle(boost_throttle);
-    Verify(Method(potentiometer_mock, setValue).Using(1.0f)).Once(); // current_boost becomes 1
+    Verify(Method(potentiometer_mock, setValue).Using(config.max)).Once();
 
     // 2. Cancel boost
     StoveThrottle zero_throttle{.position = 0.5f, .boost = 0};
-    When(Method(ArduinoFake(), millis)).AlwaysReturn(11002);
+    When(Method(ArduinoFake(), millis)).AlwaysReturn(12002);
     actuator.setThrottle(zero_throttle);
 
     // Logic: throttle.boost (0) < current_boost_ (1).
-    // deboost_value = 0.75.
-    // pot.setPosition(min(0.75, 0.4)) -> 0.4.
+    // pot.setPosition(min(0.4, 0.7)) -> 0.4.
     Verify(Method(potentiometer_mock, setValue).Using(value)).Once();
   }
 }

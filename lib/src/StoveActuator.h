@@ -19,9 +19,9 @@ private:
   DigitalWritePin &bypass_pin_;
   const ThrottleConfig config_;
 
-  bool is_bypass_;
-  uint32_t current_boost_;
-  bool is_boost_pulse_active_;
+  bool is_bypass_ = false;
+  uint32_t current_boost_ = 0;
+  bool is_boost_pulse_active_ = false;
   uint32_t last_boost_change_ms_ = 0;
   StoveThrottle throttle_ = {};
   StoveThrottle printed_throttle_ = {};

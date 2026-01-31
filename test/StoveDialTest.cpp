@@ -19,7 +19,7 @@ TEST_CASE("StoveDial Logic") {
   };
 
   SUBCASE("ThrottleConfig") {
-    auto values = {config.min, config.max, config.arm, config.boost, config.boil};
+    auto values = {config.min, config.max, config.boost, config.boil};
     CHECK(std::is_sorted(values.begin(), values.end()));
   }
 
