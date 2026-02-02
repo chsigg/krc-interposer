@@ -93,7 +93,8 @@ void BleThermometer::begin() {
   char_.begin(&service_);
 
   Bluefruit.Scanner.setRxCallback(globalScanCallback);
-  Bluefruit.Scanner.setInterval(160, 80); // Scan every 200ms for 100ms
+  // Scan every 160*0.625ms=100ms for 40*0.624ms=25ms.
+  Bluefruit.Scanner.setInterval(160, 40);
   Bluefruit.Scanner.useActiveScan(false);
   Bluefruit.Scanner.filterUuid(service_.uuid);
 }

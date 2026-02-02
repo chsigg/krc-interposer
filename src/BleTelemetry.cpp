@@ -53,10 +53,10 @@ void BleTelemetry::begin() {
   Bluefruit.Advertising.addService(bleuart_);
   Bluefruit.Advertising.addService(service_);
   Bluefruit.Advertising.restartOnDisconnect(true);
-  Bluefruit.Advertising.setInterval(32, 244); // 20ms to 152.5ms
-  Bluefruit.Advertising.setFastTimeout(30);   // 30 seconds
+  // Advertise every 320*0.625ms=200ms.
+  Bluefruit.Advertising.setInterval(/*fast=*/320, /*slow=*/320);
 
-  Bluefruit.Advertising.start(0);
+  Bluefruit.Advertising.start(/*timeout=*/0);
 }
 
 void BleTelemetry::update() {

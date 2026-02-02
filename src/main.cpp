@@ -105,6 +105,7 @@ void setup() {
 
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.begin(1, 1);
+  Bluefruit.setTxPower(8);
   Bluefruit.setName("KRC Interposer");
   Bluefruit.Security.setIOCaps(false, false, false);
   Bluefruit.Security.setMITM(false);
