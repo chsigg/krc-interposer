@@ -59,8 +59,16 @@ void BleTelemetry::begin() {
   Bluefruit.Advertising.start(/*timeout=*/0);
 }
 
-void BleTelemetry::update() {
+void BleTelemetry::end() {
+  Bluefruit.Advertising.stop();
+  uint16_t conn_handle = BLE_CONN_HANDLE_INVALID;
+  Bluefruit.getConnectedHandles(&conn_handle, 1);
+  if (conn_handle != BLE_CONN_HANDLE_INVALID) {
+    Bluefruit.disconnect(conn_handle);
+  }
+}
 
+void BleTelemetry::update() {
   if (!Bluefruit.connected()) {
     return;
   }

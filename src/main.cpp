@@ -27,9 +27,6 @@ constexpr int kSclPin = D2;
 constexpr int kSdaPin = D3;
 constexpr int kStoveDialPin = A4;
 constexpr int kBypassPin = D10;
-constexpr int kLedRedPin = LED_RED;
-constexpr int kLedGreenPin = LED_GREEN;
-constexpr int kLedBluePin = LED_BLUE;
 
 // --- Hardware Instantiation ---
 
@@ -40,7 +37,6 @@ BLEUart bleuart;
 ArduinoLogger logger(Serial, bleuart);
 Logger &Log = logger;
 
-// Actuator Pins
 class BypassPin : public DigitalWritePin {
 public:
   void begin() {
@@ -55,7 +51,7 @@ public:
 
 private:
   ArduinoDigitalWritePin write_pin_{kBypassPin};
-  ArduinoDigitalWritePin led_pin_{kLedGreenPin};
+  ArduinoDigitalWritePin led_pin_{LED_GREEN};
 };
 
 AdafruitPotentiometer potentiometer;
@@ -70,7 +66,7 @@ StoveDial dial(input_read_pin, throttle_config);
 // Feedback
 ArduinoBuzzer buzzer(NRF_PWM3, kBuzzerPPin, kBuzzerNPin);
 Beeper beeper(buzzer);
-ArduinoAnalogWritePin input_led_pin(kLedRedPin);
+ArduinoAnalogWritePin input_led_pin(LED_RED);
 
 // Logic Modules
 TrendAnalyzer analyzer;
@@ -93,6 +89,10 @@ void setup() {
   }
 
   Log << "KRC Interceptor Starting...\n";
+
+  for (int pin : {D5, D6, D7, D8, D9}) {
+    pinMode(pin, INPUT_PULLDOWN);
+  }
 
   analogReadResolution(12);
   Wire.setPins(kSdaPin, kSclPin);
@@ -133,6 +133,36 @@ static void log(uint32_t time_ms) {
       << (controller.isLidOpen() ? " (lid open)" : "") << "\n";
 }
 
+static void poweroff() {
+  Log << "Powering off...\n";
+  Serial.end();
+  Wire.end();
+  thermometer.stop();
+  telemetry.end();
+
+  for (int pin : {kBuzzerPPin, kBuzzerNPin}) {
+    pinMode(pin, INPUT_PULLDOWN);
+  }
+  for (int pin : {kSclPin, kSdaPin, kBypassPin, LED_RED, LED_GREEN, LED_BLUE}) {
+    pinMode(pin, INPUT);
+  }
+
+  NRF_LPCOMP->ENABLE = LPCOMP_ENABLE_ENABLE_Disabled;
+  NRF_LPCOMP->PSEL = LPCOMP_PSEL_PSEL_AnalogInput2; // A4
+  NRF_LPCOMP->REFSEL = LPCOMP_REFSEL_REFSEL_Ref7_8Vdd;
+  NRF_LPCOMP->ANADETECT = LPCOMP_ANADETECT_ANADETECT_Up;
+  NRF_LPCOMP->HYST = LPCOMP_HYST_HYST_Hyst50mV;
+  NRF_LPCOMP->ENABLE = LPCOMP_ENABLE_ENABLE_Enabled;
+  NRF_LPCOMP->TASKS_START = 1;
+
+  // Wait for ready, then clear events.
+  while (NRF_LPCOMP->EVENTS_READY == 0) {}
+  NRF_LPCOMP->EVENTS_READY = 0;
+  NRF_LPCOMP->EVENTS_UP = 0;
+
+  sd_power_system_off();
+}
+
 void loop() {
   uint32_t now = millis();
 
@@ -144,5 +174,5 @@ void loop() {
   log(now);
   telemetry.update();
 
-  delay(10);
+  delay(100);
 }

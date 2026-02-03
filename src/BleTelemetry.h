@@ -19,6 +19,7 @@ public:
   BleTelemetry(BLEUart &bleuart, ThermalController &thermalController,
                const TrendAnalyzer &trendAnalyzer);
   void begin();
+  void end();
   void update();
 
 private:

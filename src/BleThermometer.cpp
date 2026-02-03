@@ -214,6 +214,8 @@ void BleThermometer::globalConnectCallback(uint16_t conn_handle) {
     return;
   }
 
+  delay(100);  // Let the stack negotiate connection.
+
   if (!sBleThermometer->service_.discover(conn_handle)) {
     Log << "  Service discovery failed\n";
     return;
