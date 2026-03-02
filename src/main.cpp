@@ -64,7 +64,6 @@ StoveDial dial(dial_read_pin, throttle_config);
 // Feedback
 ArduinoBuzzer buzzer(NRF_PWM3, kBuzzerPPin, kBuzzerNPin);
 Beeper beeper(buzzer);
-ArduinoAnalogWritePin input_led_pin(LED_RED);
 
 // Logic Modules
 TrendAnalyzer analyzer;
@@ -129,7 +128,6 @@ void setup() {
   bypass_pin.set(PinState::Low);
 
   dial_read_pin.begin();
-  input_led_pin.begin();
   buzzer.begin();
   stove_pwm.begin();
 
@@ -166,8 +164,6 @@ void loop() {
   uint32_t now = millis();
 
   supervisor.update();
-  float input_val = std::clamp(dial_read_pin.read(), 0.0f, 1.0f);
-  input_led_pin.write(1.0f - input_val);
 
   log(now);
   telemetry.update();
