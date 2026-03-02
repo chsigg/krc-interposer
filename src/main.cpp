@@ -44,23 +44,6 @@ private:
   ArduinoAnalogReadPin ref_pin_{kDialRefPin, 1.0f};
 };
 
-class BypassPin : public DigitalWritePin {
-public:
-  void begin() {
-    write_pin_.begin();
-    led_pin_.begin();
-  }
-
-  void set(PinState state) const override {
-    write_pin_.set(state);
-    led_pin_.set(state == PinState::High ? PinState::Low : PinState::High);
-  }
-
-private:
-  ArduinoDigitalWritePin write_pin_{kBypassPin};
-  ArduinoDigitalWritePin led_pin_{LED_GREEN};
-};
-
 // --- Hardware Instantiation ---
 
 // Tee stream for logging to Serial and BLE
@@ -70,7 +53,7 @@ Logger &Log = logger;
 
 // Actuators
 ArduinoAnalogWritePin stove_pwm(kStovePwmPin);
-BypassPin bypass_pin;
+ArduinoDigitalWritePin bypass_pin(kBypassPin);
 ThrottleConfig throttle_config; // Defaults
 StoveActuator actuator(stove_pwm, bypass_pin, throttle_config);
 
@@ -143,6 +126,8 @@ void setup() {
   analogReadResolution(12);
 
   bypass_pin.begin();
+  bypass_pin.set(PinState::Low);
+
   dial_read_pin.begin();
   input_led_pin.begin();
   buzzer.begin();
