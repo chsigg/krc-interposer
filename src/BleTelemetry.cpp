@@ -35,9 +35,8 @@ void BleTelemetry::begin() {
 
   service_.begin();
 
-  target_temp_.setProperties(CHR_PROPS_NOTIFY | CHR_PROPS_WRITE);
-  target_temp_.setPermission(SECMODE_OPEN, SECMODE_ENC_NO_MITM);
-  target_temp_.setWriteCallback(tempMeasurementWrittenCallback);
+  target_temp_.setProperties(CHR_PROPS_NOTIFY);
+  target_temp_.setPermission(SECMODE_OPEN, SECMODE_NO_ACCESS);
   target_temp_.setFixedLen(5); // 1 byte flags + 4 bytes float
   target_temp_.begin();
 
@@ -55,15 +54,14 @@ void BleTelemetry::begin() {
   Bluefruit.Advertising.restartOnDisconnect(true);
   // Advertise every 320*0.625ms=200ms.
   Bluefruit.Advertising.setInterval(/*fast=*/320, /*slow=*/320);
-
   Bluefruit.Advertising.start(/*timeout=*/0);
 }
 
 void BleTelemetry::end() {
+  Bluefruit.Advertising.restartOnDisconnect(false);
   Bluefruit.Advertising.stop();
   uint16_t conn_handle = BLE_CONN_HANDLE_INVALID;
-  Bluefruit.getConnectedHandles(&conn_handle, 1);
-  if (conn_handle != BLE_CONN_HANDLE_INVALID) {
+  if (Bluefruit.getConnectedHandles(&conn_handle, 1)) {
     Bluefruit.disconnect(conn_handle);
   }
 }
@@ -87,16 +85,4 @@ void BleTelemetry::update() {
     auto trend_temp = encodeIEEE11073(trend_analyzer_.getValue(millis()));
     current_temp_.notify(trend_temp.data(), trend_temp.size());
   }
-}
-
-void BleTelemetry::tempMeasurementWrittenCallback(uint16_t conn_hdl,
-                                                  BLECharacteristic *chr,
-                                                  uint8_t *data, uint16_t len) {
-  if (len < 5) {
-    return; // Flags (1) + Float (4) minimum
-  }
-
-  float temp = decodeIEEE11073(data, len);
-  static_cast<TempMeasurement *>(chr)
-      ->telemetry->thermal_controller_.setTargetTemp(temp);
 }

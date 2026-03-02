@@ -1,10 +1,9 @@
 #include <Adafruit_TinyUSB.h>
 #include <Arduino.h>
-#include <Wire.h>
 #include <algorithm>
 #include <bluefruit.h>
+#include <nrf_lpcomp.h>
 
-#include "AdafruitPotentiometer.h"
 #include "ArduinoAnalogReadPin.h"
 #include "ArduinoAnalogWritePin.h"
 #include "ArduinoBuzzer.h"
@@ -21,21 +20,29 @@
 
 void delayUs(uint32_t us) { delayMicroseconds(us); }
 
-constexpr int kBuzzerPPin = D0;
-constexpr int kBuzzerNPin = D1;
-constexpr int kSclPin = D2;
-constexpr int kSdaPin = D3;
-constexpr int kStoveDialPin = A4;
+constexpr int kStovePwmPin = A0;
+constexpr int kBuzzerPPin = A1;
+constexpr int kBuzzerNPin = A2;
+constexpr int kDialReadPin = A3;
+constexpr int kDialRefPin = A4;
 constexpr int kBypassPin = D10;
 
-// --- Hardware Instantiation ---
+class DialReadPin : public AnalogReadPin {
+public:
+  void begin() {
+    read_pin_.begin();
+    ref_pin_.begin();
+  }
 
-BLEDfu bledfu;
+  float read() const override {
+    float ref = ref_pin_.read();
+    return ref == 0.0f ? 0.0f : read_pin_.read() / ref;
+  }
 
-// Tee stream for logging to Serial and BLE
-BLEUart bleuart;
-ArduinoLogger logger(Serial, bleuart);
-Logger &Log = logger;
+private:
+  ArduinoAnalogReadPin read_pin_{kDialReadPin, 1.0f};
+  ArduinoAnalogReadPin ref_pin_{kDialRefPin, 1.0f};
+};
 
 class BypassPin : public DigitalWritePin {
 public:
@@ -54,14 +61,22 @@ private:
   ArduinoDigitalWritePin led_pin_{LED_GREEN};
 };
 
-AdafruitPotentiometer potentiometer;
+// --- Hardware Instantiation ---
+
+// Tee stream for logging to Serial and BLE
+BLEUart bleuart;
+ArduinoLogger logger(Serial, bleuart);
+Logger &Log = logger;
+
+// Actuators
+ArduinoAnalogWritePin stove_pwm(kStovePwmPin);
 BypassPin bypass_pin;
 ThrottleConfig throttle_config; // Defaults
-StoveActuator actuator(potentiometer, bypass_pin, throttle_config);
+StoveActuator actuator(stove_pwm, bypass_pin, throttle_config);
 
-// Sensor Pins
-ArduinoAnalogReadPin input_read_pin(kStoveDialPin, 1.25f / 4095.0f);
-StoveDial dial(input_read_pin, throttle_config);
+// Sensors
+DialReadPin dial_read_pin;
+StoveDial dial(dial_read_pin, throttle_config);
 
 // Feedback
 ArduinoBuzzer buzzer(NRF_PWM3, kBuzzerPPin, kBuzzerNPin);
@@ -77,10 +92,41 @@ ThermalController controller(analyzer, thermal_config);
 BleThermometer thermometer(analyzer);
 BleTelemetry telemetry(bleuart, controller, analyzer);
 
+static void poweroff() {
+  Log << "Powering off...\n";
+  Serial.end();
+  thermometer.end();
+  telemetry.end();
+
+  for (int pin : {kBuzzerPPin, kBuzzerNPin}) {
+    pinMode(pin, INPUT_PULLDOWN);
+  }
+  for (int pin : {kStovePwmPin, kDialReadPin, kDialRefPin, kBypassPin, LED_RED,
+                  LED_GREEN, LED_BLUE}) {
+    pinMode(pin, INPUT);
+  }
+
+  // Set up boot trigger when pin is 7/8 of VDD.
+  nrf_lpcomp_disable(NRF_LPCOMP);
+  const nrf_lpcomp_config_t lpcomp_config = {
+      .reference = NRF_LPCOMP_REF_SUPPLY_7_8,
+      .detection = NRF_LPCOMP_DETECT_UP,
+      .hyst = NRF_LPCOMP_HYST_ENABLED};
+  nrf_lpcomp_configure(NRF_LPCOMP, &lpcomp_config);
+  nrf_lpcomp_input_select(NRF_LPCOMP, NRF_LPCOMP_INPUT_3);
+  nrf_lpcomp_enable(NRF_LPCOMP);
+  nrf_lpcomp_task_trigger(NRF_LPCOMP, NRF_LPCOMP_TASK_START);
+  while (!nrf_lpcomp_event_check(NRF_LPCOMP, NRF_LPCOMP_EVENT_READY)) {
+  } // Wait for ready
+
+  sd_power_system_off();
+}
+
 // Supervisor
 StoveConfig stove_config;
 StoveSupervisor supervisor(dial, actuator, controller, beeper, analyzer,
-                           thermometer, stove_config, throttle_config);
+                           thermometer, stove_config, throttle_config,
+                           poweroff);
 
 void setup() {
   Serial.begin(115200);
@@ -95,13 +141,12 @@ void setup() {
   }
 
   analogReadResolution(12);
-  Wire.setPins(kSdaPin, kSclPin);
 
   bypass_pin.begin();
-  input_read_pin.begin();
+  dial_read_pin.begin();
   input_led_pin.begin();
   buzzer.begin();
-  potentiometer.begin();
+  stove_pwm.begin();
 
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.begin(1, 1);
@@ -110,11 +155,10 @@ void setup() {
   Bluefruit.Security.setIOCaps(false, false, false);
   Bluefruit.Security.setMITM(false);
 
-  bledfu.begin();
   thermometer.begin();
   telemetry.begin();
 
-  actuator.setBypass();
+  supervisor.begin();
 }
 
 static void log(uint32_t time_ms) {
@@ -133,42 +177,11 @@ static void log(uint32_t time_ms) {
       << (controller.isLidOpen() ? " (lid open)" : "") << "\n";
 }
 
-static void poweroff() {
-  Log << "Powering off...\n";
-  Serial.end();
-  Wire.end();
-  thermometer.stop();
-  telemetry.end();
-
-  for (int pin : {kBuzzerPPin, kBuzzerNPin}) {
-    pinMode(pin, INPUT_PULLDOWN);
-  }
-  for (int pin : {kSclPin, kSdaPin, kBypassPin, LED_RED, LED_GREEN, LED_BLUE}) {
-    pinMode(pin, INPUT);
-  }
-
-  NRF_LPCOMP->ENABLE = LPCOMP_ENABLE_ENABLE_Disabled;
-  NRF_LPCOMP->PSEL = LPCOMP_PSEL_PSEL_AnalogInput2; // A4
-  NRF_LPCOMP->REFSEL = LPCOMP_REFSEL_REFSEL_Ref7_8Vdd;
-  NRF_LPCOMP->ANADETECT = LPCOMP_ANADETECT_ANADETECT_Up;
-  NRF_LPCOMP->HYST = LPCOMP_HYST_HYST_Hyst50mV;
-  NRF_LPCOMP->ENABLE = LPCOMP_ENABLE_ENABLE_Enabled;
-  NRF_LPCOMP->TASKS_START = 1;
-
-  // Wait for ready, then clear events.
-  while (NRF_LPCOMP->EVENTS_READY == 0) {}
-  NRF_LPCOMP->EVENTS_READY = 0;
-  NRF_LPCOMP->EVENTS_UP = 0;
-
-  sd_power_system_off();
-}
-
 void loop() {
   uint32_t now = millis();
 
   supervisor.update();
-
-  float input_val = std::clamp(input_read_pin.read(), 0.0f, 1.0f);
+  float input_val = std::clamp(dial_read_pin.read(), 0.0f, 1.0f);
   input_led_pin.write(1.0f - input_val);
 
   log(now);

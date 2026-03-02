@@ -97,33 +97,35 @@ void BleThermometer::begin() {
   Bluefruit.Scanner.setInterval(160, 40);
   Bluefruit.Scanner.useActiveScan(false);
   Bluefruit.Scanner.filterUuid(service_.uuid);
-}
-
-bool BleThermometer::connected() { return service_.discovered(); }
-
-void BleThermometer::start() {
-  Log << "BleThermometer::start()\n";
-  if (service_.discovered()) {
-    return;
-  }
-  if (Bluefruit.Scanner.isRunning()) {
-    Bluefruit.Scanner.stop();
-  }
   Bluefruit.Scanner.restartOnDisconnect(true);
   Bluefruit.Scanner.start(0);
 }
 
-void BleThermometer::stop() {
-  Log << "BleThermometer::stop()\n";
-
+void BleThermometer::end() {
   Bluefruit.Scanner.restartOnDisconnect(false);
   Bluefruit.Scanner.stop();
-  if (service_.discovered()) {
-    if (BLEConnection *conn = Bluefruit.Connection(service_.connHandle())) {
-      conn->disconnect();
-    }
+  if (connected()) {
+    Bluefruit.disconnect(service_.connHandle());
   }
 }
+
+void BleThermometer::update() {
+  if (!connected()) {
+    return;
+  }
+
+  uint32_t now = millis();
+  if (now - last_rssi_read_ms_ < 10000) {
+    return;
+  }
+
+  if (BLEConnection *conn = Bluefruit.Connection(service_.connHandle())) {
+    Log << "RSSI: " << conn->getRssi() << " dBm\n";
+    last_rssi_read_ms_ = now;
+  }
+}
+
+bool BleThermometer::connected() { return service_.discovered(); }
 
 bool BleThermometer::connectCallback(const char *name) {
   Log << "BleThermometer::connectCallback(" << name << ")\n";

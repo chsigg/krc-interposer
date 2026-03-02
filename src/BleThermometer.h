@@ -20,9 +20,9 @@ public:
   ~BleThermometer();
 
   void begin();
-  void start() override;
-  void stop() override;
+  void end();
   bool connected() override;
+  void update() override;
 
 private:
   bool connectCallback(const char *name);
@@ -37,4 +37,5 @@ private:
 
   BLEClientService service_= {UUID16_SVC_HEALTH_THERMOMETER};
   IntermediateTemp char_  = {this};
+  uint32_t last_rssi_read_ms_ = 0;
 };

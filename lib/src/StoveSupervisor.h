@@ -15,24 +15,25 @@ struct StoveConfig {
 
 class StoveSupervisor {
 public:
+  using PowerOffCallback = void (*)();
+
   StoveSupervisor(StoveDial &dial, StoveActuator &actuator,
                   ThermalController &controller, Beeper &beeper,
                   TrendAnalyzer &analyzer, Thermometer &thermometer,
                   const StoveConfig &stove_config,
-                  const ThrottleConfig &throttle_config);
+                  const ThrottleConfig &throttle_config,
+                  PowerOffCallback power_off_cb);
   virtual ~StoveSupervisor() = default;
 
+  void begin();
   void update();
 
 private:
   enum class State {
-    SLEEP,      // Waiting for dial activity, BLE off
-    SCANNING,   // Waiting for thermometer connection
-    CONNECTED,  // Waiting for auto pos
-    ACTIVATING, // Waiting for 3sec
+    SCANNING,   // Waiting for connection
+    CONNECTED,  // Connected, waiting 1s
     ACTIVE,     // PID control active
-    DISCONNECTED, // Signal lost
-    COOLDOWN    // Waiting for 30sec
+    DISCONNECTED // Signal lost
   };
 
   void transitionTo(State new_state);
@@ -46,11 +47,11 @@ private:
   Thermometer &thermometer_;
   const StoveConfig stove_config_;
   const ThrottleConfig throttle_config_;
+  PowerOffCallback power_off_cb_;
 
-  State state_ = State::SLEEP;
+  State state_ = State::SCANNING;
   uint32_t state_entry_ms_ = 0;
   uint32_t dial_off_start_ms_ = 0;
-  bool has_beeped_connected_ = false;
   float dial_target_temp_ = -1.0f;
   bool is_temp_low_ = false;
 };
