@@ -115,7 +115,7 @@ TEST_CASE("StoveSupervisor Logic") {
       Verify(Method(beeper_mock, beep).Using(Beeper::Signal::NONE)).Once();
     }
 
-    SUBCASE("Transition CONNECTED -> SCANNING on disconnect") {
+    SUBCASE("Transition CONNECTED -> DISCONNECTED on disconnect") {
       When(Method(thermometer_mock, connected)).AlwaysReturn(false);
       supervisor.update();
     }

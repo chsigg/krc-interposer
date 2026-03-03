@@ -38,10 +38,6 @@ void StoveSupervisor::update() {
     return power_off_cb_();
   }
 
-  if (!thermometer_.connected()) {
-    return transitionTo(State::SCANNING);
-  }
-
   constexpr uint32_t connected_wait_ms = 1000;
   constexpr uint32_t disconnected_after_ms = 30 * 1000;
 
@@ -52,12 +48,15 @@ void StoveSupervisor::update() {
     }
     break;
   case State::CONNECTED:
+    if (!thermometer_.connected()) {
+      return transitionTo(State::DISCONNECTED);
+    }
     if (now - state_entry_ms_ > connected_wait_ms) {
       return transitionTo(State::ACTIVE);
     }
     break;
   case State::ACTIVE:
-    if (now - analyzer_.getLastUpdateMs() > disconnected_after_ms) {
+    if (!thermometer_.connected() || now - analyzer_.getLastUpdateMs() > disconnected_after_ms) {
       return transitionTo(State::DISCONNECTED);
     }
     if (float dial_target_temp =
@@ -83,7 +82,7 @@ void StoveSupervisor::update() {
                            is_temp_low_ ? throttle_config_.num_boosts : 0});
     break;
   case State::DISCONNECTED:
-    if (now - analyzer_.getLastUpdateMs() < disconnected_after_ms) {
+    if (thermometer_.connected() && now - analyzer_.getLastUpdateMs() < disconnected_after_ms) {
       return transitionTo(State::ACTIVE);
     }
     break;
