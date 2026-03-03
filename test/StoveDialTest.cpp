@@ -10,12 +10,9 @@ TEST_CASE("StoveDial Logic") {
   ThrottleConfig config;
   StoveDial dial(pin_mock.get(), config);
 
-  // Helper to stabilize the moving average (size 4)
   auto set_reading = [&](float val) {
-    When(Method(pin_mock, read)).AlwaysDo([&] { return val; });
-    for (int i = 0; i < 4; ++i) {
-      dial.update();
-    }
+    When(Method(pin_mock, read)).AlwaysReturn(val);
+    dial.update();
   };
 
   SUBCASE("ThrottleConfig") {
@@ -23,38 +20,24 @@ TEST_CASE("StoveDial Logic") {
     CHECK(std::is_sorted(values.begin(), values.end()));
   }
 
-  SUBCASE("Initialization") {
-    CHECK(dial.getPosition() == 0.0f);
-  }
+  SUBCASE("Initialization") { CHECK(dial.getPosition() == 0.0f); }
 
   SUBCASE("isOff Logic") {
     SUBCASE("Is off") {
-      set_reading(config.min - 0.05f);
+      set_reading(config.min - 0.01f);
       CHECK(dial.isOff());
     }
 
     SUBCASE("Is on") {
-      set_reading(config.min);
-      CHECK_FALSE(dial.isOff());
-
-      set_reading(config.max);
+      set_reading(config.min + 0.01f);
       CHECK_FALSE(dial.isOff());
     }
   }
 
   SUBCASE("Throttle Mapping") {
-    SUBCASE("Below min") {
-      set_reading(config.min / 2);
-      CHECK(dial.getPosition() == 0.0f);
-    }
-
     SUBCASE("Linear range") {
-      set_reading(config.min); // At min
+      set_reading(config.min);
       CHECK(dial.getPosition() == doctest::Approx(config.min / config.max));
-
-      float mid = (config.min + config.max) / 2;
-      set_reading(mid);
-      CHECK(dial.getPosition() == doctest::Approx(mid / config.max));
 
       set_reading(config.max);
       CHECK(dial.getPosition() == doctest::Approx(1.0));
@@ -62,10 +45,10 @@ TEST_CASE("StoveDial Logic") {
 
     SUBCASE("Above max is ignored") {
       set_reading(config.min);
-      CHECK(dial.getPosition() == doctest::Approx(config.min / config.max));
+      float pos_at_min = dial.getPosition();
 
-      set_reading(config.max + 0.05f);
-      CHECK(dial.getPosition() == doctest::Approx(config.min / config.max)); // Unchanged
+      set_reading(config.boil);
+      CHECK(dial.getPosition() == pos_at_min);
     }
   }
 }

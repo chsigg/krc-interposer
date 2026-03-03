@@ -35,7 +35,6 @@ private:
     ACTIVE,     // PID control active
     DISCONNECTED // Signal lost
   };
-
   void transitionTo(State new_state);
   const char *getStateName(State state) const;
 

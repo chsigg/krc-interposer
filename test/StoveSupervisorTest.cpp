@@ -1,13 +1,13 @@
-#include <doctest.h>
 #include <ArduinoFake.h>
+#include <doctest.h>
 
-#include "StoveSupervisor.h"
-#include "StoveDial.h"
-#include "StoveActuator.h"
-#include "ThermalController.h"
 #include "Beeper.h"
-#include "TrendAnalyzer.h"
+#include "StoveActuator.h"
+#include "StoveDial.h"
+#include "StoveSupervisor.h"
+#include "ThermalController.h"
 #include "Thermometer.h"
+#include "TrendAnalyzer.h"
 #include <cmath>
 
 using namespace fakeit;
@@ -28,23 +28,22 @@ TEST_CASE("StoveSupervisor Logic") {
   Mock<ThermalController> controller_mock;
   Mock<Thermometer> thermometer_mock;
   Mock<DigitalWritePin> bypass_mock;
-  
+
   static bool poweroff_called = false;
   poweroff_called = false;
   auto poweroff_fn = []() { poweroff_called = true; };
 
   // --- DUT ---
-  StoveSupervisor supervisor(dial_mock.get(), actuator_mock.get(),
-                             controller_mock.get(), beeper_mock.get(),
-                             analyzer_mock.get(), thermometer_mock.get(),
-                             bypass_mock.get(),
-                             stove_config, throttle_config, poweroff_fn);
+  StoveSupervisor supervisor(
+      dial_mock.get(), actuator_mock.get(), controller_mock.get(),
+      beeper_mock.get(), analyzer_mock.get(), thermometer_mock.get(),
+      bypass_mock.get(), stove_config, throttle_config, poweroff_fn);
 
   uint32_t current_time_ms = 0;
-  When(Method(ArduinoFake(), millis)).AlwaysDo([&]() { return current_time_ms; });
-  auto set_time = [&](uint32_t t) {
-    current_time_ms = t;
-  };
+  When(Method(ArduinoFake(), millis)).AlwaysDo([&]() {
+    return current_time_ms;
+  });
+  auto set_time = [&](uint32_t t) { current_time_ms = t; };
   set_time(0);
 
   auto isNear = [](const StoveThrottle &t, const StoveThrottle &expected) {
@@ -95,11 +94,13 @@ TEST_CASE("StoveSupervisor Logic") {
     SUBCASE("Transition SCANNING -> CONNECTED") {
       When(Method(thermometer_mock, connected)).AlwaysReturn(true);
       supervisor.update();
-      // CONNECTED entry sets throttle to 0 and beeps ACCEPT
-      Verify(Method(beeper_mock, beep).Using(Beeper::Signal::ACCEPT)).Once();
-      Verify(Method(actuator_mock, setThrottle).Matching([&](const StoveThrottle &t) {
-        return isNear(t, StoveThrottle{0.0f, 0});
-      })).Once();
+      // CONNECTED entry sets throttle to 0 and beeps CONNECTED
+      Verify(Method(beeper_mock, beep).Using(Beeper::Signal::CONNECTED)).Once();
+      Verify(Method(actuator_mock, setThrottle)
+                 .Matching([&](const StoveThrottle &t) {
+                   return isNear(t, StoveThrottle{0.0f, 0});
+                 }))
+          .Once();
     }
   }
 
@@ -150,9 +151,12 @@ TEST_CASE("StoveSupervisor Logic") {
       When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(1001);
 
       auto verify_throttle = [&](float expected_pos, uint32_t expected_boost) {
-        Verify(Method(actuator_mock, setThrottle).Matching([&](const StoveThrottle &t) {
-          return isNear(t, StoveThrottle{expected_pos, expected_boost});
-        })).Once();
+        Verify(
+            Method(actuator_mock, setThrottle)
+                .Matching([&](const StoveThrottle &t) {
+                  return isNear(t, StoveThrottle{expected_pos, expected_boost});
+                }))
+            .Once();
       };
 
       SUBCASE("Engages boost when > 20 degrees away") {
@@ -180,13 +184,17 @@ TEST_CASE("StoveSupervisor Logic") {
 
       supervisor.update();
 
-      Verify(Method(actuator_mock, setThrottle).Matching([&](const StoveThrottle &t) {
-        return isNear(t, StoveThrottle{0.0f, 0});
-      })).Once();
-      Verify(Method(beeper_mock, beep).Using(Beeper::Signal::ERROR)).Once();
+      Verify(Method(actuator_mock, setThrottle)
+                 .Matching([&](const StoveThrottle &t) {
+                   return isNear(t, StoveThrottle{0.0f, 0});
+                 }))
+          .Once();
+      Verify(Method(beeper_mock, beep).Using(Beeper::Signal::DISCONNECTED))
+          .Once();
 
       SUBCASE("Transition DISCONNECTED -> ACTIVE on signal recovery") {
-        When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(current_time_ms);
+        When(Method(analyzer_mock, getLastUpdateMs))
+            .AlwaysReturn(current_time_ms);
         supervisor.update();
         // ACTIVE entry resets target temp
       }

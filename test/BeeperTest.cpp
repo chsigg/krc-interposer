@@ -6,9 +6,9 @@
 using namespace fakeit;
 
 namespace {
-constexpr uint16_t LOW_FREQ = 800;
-constexpr uint16_t HIGH_FREQ = 1200;
-constexpr uint16_t TONE_DURATION_MS = 200;
+constexpr uint16_t kLowFreq = 800;
+constexpr uint16_t kHighFreq = 1200;
+constexpr uint16_t kToneDurationMs = 200;
 } // namespace
 
 TEST_CASE("Beeper Logic") {
@@ -18,70 +18,78 @@ TEST_CASE("Beeper Logic") {
   Fake(Method(buzzer_mock, enable));
   Fake(Method(buzzer_mock, disable));
 
-  SUBCASE("beep() is instantaneous") {
-    When(Method(ArduinoFake(), millis)).AlwaysReturn(1000);
-    beeper.beep(Beeper::Signal::ACCEPT);
-    Verify(Method(buzzer_mock, enable).Using(LOW_FREQ)).Once();
+  uint32_t current_time_ms = 1000;
+  When(Method(ArduinoFake(), millis)).AlwaysDo([&]() {
+    return current_time_ms;
+  });
+  auto advance_time = [&](uint32_t ms) {
+    current_time_ms += ms;
     beeper.update();
-    VerifyNoOtherInvocations(buzzer_mock);
+  };
+
+  SUBCASE("isIdle") {
+    CHECK(beeper.isIdle());
+    beeper.beep(Beeper::Signal::POWER_ON);
+    CHECK_FALSE(beeper.isIdle());
+    advance_time(kToneDurationMs); // First tone finishes
+    CHECK_FALSE(beeper.isIdle());
+    advance_time(kToneDurationMs); // Second tone finishes
+    CHECK(beeper.isIdle());
   }
 
-  SUBCASE("beep(NONE) turns buzzer off") {
-    When(Method(ArduinoFake(), millis)).AlwaysReturn(1000);
-    beeper.beep(Beeper::Signal::ERROR);
-    Verify(Method(buzzer_mock, enable).Using(LOW_FREQ)).Once();
+  SUBCASE("beep(POWER_ON) is LOW-HIGH") {
+    beeper.beep(Beeper::Signal::POWER_ON);
+    Verify(Method(buzzer_mock, enable).Using(kLowFreq)).Once();
 
-    beeper.beep(Beeper::Signal::NONE);
+    advance_time(kToneDurationMs);
+    Verify(Method(buzzer_mock, enable).Using(kHighFreq)).Once();
+
+    advance_time(kToneDurationMs);
     Verify(Method(buzzer_mock, disable)).Once();
+    CHECK(beeper.isIdle());
   }
 
-  SUBCASE("ACCEPT signal") {
-    When(Method(ArduinoFake(), millis)).AlwaysReturn(1000);
-    beeper.beep(Beeper::Signal::ACCEPT);
-    Verify(Method(buzzer_mock, enable).Using(LOW_FREQ)).Once();
+  SUBCASE("beep(POWER_OFF) is HIGH-LOW") {
+    beeper.beep(Beeper::Signal::POWER_OFF);
+    Verify(Method(buzzer_mock, enable).Using(kHighFreq)).Once();
 
-    When(Method(ArduinoFake(), millis)).AlwaysReturn(1000 + TONE_DURATION_MS);
-    beeper.update();
-    Verify(Method(buzzer_mock, enable).Using(HIGH_FREQ)).Once();
+    advance_time(kToneDurationMs);
+    Verify(Method(buzzer_mock, enable).Using(kLowFreq)).Once();
 
-    When(Method(ArduinoFake(), millis))
-        .AlwaysReturn(1000 + 2 * TONE_DURATION_MS);
-    beeper.update();
+    advance_time(kToneDurationMs);
     Verify(Method(buzzer_mock, disable)).Once();
+    CHECK(beeper.isIdle());
   }
 
-  SUBCASE("REJECT signal") {
-    When(Method(ArduinoFake(), millis)).AlwaysReturn(1000);
-    beeper.beep(Beeper::Signal::REJECT);
-    Verify(Method(buzzer_mock, enable).Using(HIGH_FREQ)).Once();
+  SUBCASE("beep(CONNECTED) is HIGH-LOW-HIGH") {
+    beeper.beep(Beeper::Signal::CONNECTED);
+    Verify(Method(buzzer_mock, enable).Using(kHighFreq)).Once();
 
-    When(Method(ArduinoFake(), millis)).AlwaysReturn(1000 + TONE_DURATION_MS);
-    beeper.update();
-    Verify(Method(buzzer_mock, enable).Using(LOW_FREQ)).Once();
+    advance_time(kToneDurationMs);
+    Verify(Method(buzzer_mock, enable).Using(kLowFreq)).Once();
 
-    When(Method(ArduinoFake(), millis))
-        .AlwaysReturn(1000 + 2 * TONE_DURATION_MS);
-    beeper.update();
+    advance_time(kToneDurationMs);
+    Verify(Method(buzzer_mock, enable).Using(kHighFreq)).Twice();
+
+    advance_time(kToneDurationMs);
     Verify(Method(buzzer_mock, disable)).Once();
+    CHECK(beeper.isIdle());
   }
 
-  SUBCASE("ERROR signal") {
-    When(Method(ArduinoFake(), millis)).AlwaysReturn(1000);
-    beeper.beep(Beeper::Signal::ERROR);
-    Verify(Method(buzzer_mock, enable).Using(LOW_FREQ)).Once();
+  SUBCASE("beep(DISCONNECTED) is a looping double tone") {
+    beeper.beep(Beeper::Signal::DISCONNECTED);
 
-    When(Method(ArduinoFake(), millis)).AlwaysReturn(1000 + TONE_DURATION_MS);
-    beeper.update();
+    // First pair
+    Verify(Method(buzzer_mock, enable).Using(kLowFreq)).Once();
+    advance_time(kToneDurationMs); // PAUSE start
     Verify(Method(buzzer_mock, disable)).Once();
-
-    When(Method(ArduinoFake(), millis))
-        .AlwaysReturn(1000 + 2 * TONE_DURATION_MS);
-    beeper.update();
-    Verify(Method(buzzer_mock, enable).Using(LOW_FREQ)).Twice();
-
-    When(Method(ArduinoFake(), millis))
-        .AlwaysReturn(1000 + 3 * TONE_DURATION_MS);
-    beeper.update();
+    advance_time(kToneDurationMs); // Tone 2 start
+    Verify(Method(buzzer_mock, enable).Using(kLowFreq)).Twice();
+    advance_time(kToneDurationMs); // SILENT start
     Verify(Method(buzzer_mock, disable)).Twice();
+
+    advance_time(1000); // Back to start of loop
+    Verify(Method(buzzer_mock, enable).Using(kLowFreq)).Exactly(3);
+    CHECK_FALSE(beeper.isIdle());
   }
 }

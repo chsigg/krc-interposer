@@ -11,32 +11,33 @@ Beeper::Beeper(Buzzer &buzzer) : buzzer_(buzzer) {}
 
 void Beeper::beep(Signal signal) {
   Log << "Beeper::beep(" << static_cast<uint32_t>(signal) << ")\n";
-  step_ = static_cast<uint32_t>(signal);
+  step_ = static_cast<uint8_t>(signal);
   step_end_ms_ = millis();
   update();
 }
 
 void Beeper::update() {
 
-  static constexpr uint16_t LOW_FREQ = 800;
-  static constexpr uint16_t HIGH_FREQ = 1200;
-  static constexpr uint16_t TONE_DURATION_MS = 200;
-  static constexpr uint16_t SILENT_DURATION_MS = 1000;
+  static constexpr uint16_t kLowFreq = 800;
+  static constexpr uint16_t kHighFreq = 1200;
+  static constexpr uint16_t kToneDurationMs = 200;
+  static constexpr uint16_t kSilentDurationMs = 1000;
 
   static constexpr struct {
     uint16_t duration_ms;
     uint16_t frequency_hz;
     uint8_t next_step;
   } STATES[] = {
-      {0, 0, 255},
-      {TONE_DURATION_MS, LOW_FREQ, 4},
-      {TONE_DURATION_MS, HIGH_FREQ, 5},
-      {TONE_DURATION_MS, LOW_FREQ, 6},
-      {TONE_DURATION_MS, HIGH_FREQ, 0},
-      {TONE_DURATION_MS, LOW_FREQ, 0},
-      {TONE_DURATION_MS, 0, 7},
-      {TONE_DURATION_MS, LOW_FREQ, 8},
-      {SILENT_DURATION_MS, 0, 3},
+      {0, 0, kIdleStep},
+      {kToneDurationMs, kLowFreq, 5},
+      {kToneDurationMs, kHighFreq, 6},
+      {kToneDurationMs, kHighFreq, 1},
+      {kToneDurationMs, kLowFreq, 7},
+      {kToneDurationMs, kHighFreq, 0},
+      {kToneDurationMs, kLowFreq, 0},
+      {kToneDurationMs, 0, 8},
+      {kToneDurationMs, kLowFreq, 9},
+      {kSilentDurationMs, 0, 4},
   };
 
   uint32_t now = millis();
@@ -57,4 +58,8 @@ void Beeper::update() {
     step_ = state.next_step;
     step_end_ms_ = now + state.duration_ms;
   }
+}
+
+bool Beeper::isIdle() const {
+  return step_ == kIdleStep;
 }

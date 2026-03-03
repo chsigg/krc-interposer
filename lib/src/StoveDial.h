@@ -19,7 +19,6 @@ private:
   const AnalogReadPin &pin_;
   const ThrottleConfig config_;
 
-  std::array<float, 4> last_readings_ = {};
   float value_ = 0.0f;
   float printed_value_ = 0.0f;
   float position_ = 0.0f;

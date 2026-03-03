@@ -80,6 +80,13 @@ BleTelemetry telemetry(bleuart, controller, analyzer);
 
 static void poweroff() {
   Log << "Powering off...\n";
+
+  beeper.beep(Beeper::Signal::POWER_OFF);
+  while (!beeper.isIdle()) {
+    delay(10);
+    beeper.update();
+  }
+
   Serial.end();
   thermometer.end();
   telemetry.end();
@@ -94,10 +101,10 @@ static void poweroff() {
 
   // Set up boot trigger when pin is 7/8 of VDD.
   nrf_lpcomp_disable(NRF_LPCOMP);
-  const nrf_lpcomp_config_t lpcomp_config = {
-      .reference = NRF_LPCOMP_REF_SUPPLY_7_8,
-      .detection = NRF_LPCOMP_DETECT_UP,
-      .hyst = NRF_LPCOMP_HYST_ENABLED};
+  const nrf_lpcomp_config_t lpcomp_config = {.reference =
+                                                 NRF_LPCOMP_REF_SUPPLY_7_8,
+                                             .detection = NRF_LPCOMP_DETECT_UP,
+                                             .hyst = NRF_LPCOMP_HYST_ENABLED};
   nrf_lpcomp_configure(NRF_LPCOMP, &lpcomp_config);
   nrf_lpcomp_input_select(NRF_LPCOMP, NRF_LPCOMP_INPUT_3);
   nrf_lpcomp_enable(NRF_LPCOMP);
@@ -111,8 +118,8 @@ static void poweroff() {
 // Supervisor
 StoveConfig stove_config;
 StoveSupervisor supervisor(dial, actuator, controller, beeper, analyzer,
-                           thermometer, bypass_pin, stove_config, throttle_config,
-                           poweroff);
+                           thermometer, bypass_pin, stove_config,
+                           throttle_config, poweroff);
 
 void setup() {
   Serial.begin(115200);
@@ -147,6 +154,8 @@ void setup() {
 
   thermometer.begin();
   telemetry.begin();
+
+  beeper.beep(Beeper::Signal::POWER_ON);
 }
 
 static void log(uint32_t time_ms) {

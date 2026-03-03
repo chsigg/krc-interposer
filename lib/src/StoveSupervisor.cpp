@@ -6,19 +6,15 @@
 
 extern "C" uint32_t millis();
 
-StoveSupervisor::StoveSupervisor(StoveDial &dial, StoveActuator &actuator,
-                                 ThermalController &controller, Beeper &beeper,
-                                 TrendAnalyzer &analyzer,
-                                 Thermometer &thermometer,
-                                 DigitalWritePin &bypass_pin,
-                                 const StoveConfig &stove_config,
-                                 const ThrottleConfig &throttle_config,
-                                 PowerOffCallback power_off_cb)
+StoveSupervisor::StoveSupervisor(
+    StoveDial &dial, StoveActuator &actuator, ThermalController &controller,
+    Beeper &beeper, TrendAnalyzer &analyzer, Thermometer &thermometer,
+    DigitalWritePin &bypass_pin, const StoveConfig &stove_config,
+    const ThrottleConfig &throttle_config, PowerOffCallback power_off_cb)
     : dial_(dial), actuator_(actuator), controller_(controller),
       beeper_(beeper), analyzer_(analyzer), thermometer_(thermometer),
-      bypass_pin_(bypass_pin),
-      stove_config_(stove_config), throttle_config_(throttle_config),
-      power_off_cb_(power_off_cb) {}
+      bypass_pin_(bypass_pin), stove_config_(stove_config),
+      throttle_config_(throttle_config), power_off_cb_(power_off_cb) {}
 
 static float lerp(float a, float b, float t) { return a + t * (b - a); }
 
@@ -53,7 +49,8 @@ void StoveSupervisor::update() {
     }
     break;
   case State::ACTIVE:
-    if (!thermometer_.connected() || now - analyzer_.getLastUpdateMs() > disconnected_after_ms) {
+    if (!thermometer_.connected() ||
+        now - analyzer_.getLastUpdateMs() > disconnected_after_ms) {
       return transitionTo(State::DISCONNECTED);
     }
     if (float dial_target_temp =
@@ -79,7 +76,8 @@ void StoveSupervisor::update() {
                            is_temp_low_ ? throttle_config_.num_boosts : 0});
     break;
   case State::DISCONNECTED:
-    if (thermometer_.connected() && now - analyzer_.getLastUpdateMs() < disconnected_after_ms) {
+    if (thermometer_.connected() &&
+        now - analyzer_.getLastUpdateMs() < disconnected_after_ms) {
       return transitionTo(State::ACTIVE);
     }
     break;
@@ -102,7 +100,7 @@ void StoveSupervisor::transitionTo(State new_state) {
   case State::SCANNING:
     break;
   case State::CONNECTED:
-    beeper_.beep(Beeper::Signal::ACCEPT);
+    beeper_.beep(Beeper::Signal::CONNECTED);
     actuator_.setThrottle({0.0f, 0});
     break;
   case State::ACTIVE:
@@ -111,7 +109,7 @@ void StoveSupervisor::transitionTo(State new_state) {
     break;
   case State::DISCONNECTED:
     actuator_.setThrottle({0.0f, 0});
-    beeper_.beep(Beeper::Signal::ERROR);
+    beeper_.beep(Beeper::Signal::DISCONNECTED);
     break;
   }
 }
