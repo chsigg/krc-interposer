@@ -22,9 +22,6 @@ StoveSupervisor::StoveSupervisor(StoveDial &dial, StoveActuator &actuator,
 
 static float lerp(float a, float b, float t) { return a + t * (b - a); }
 
-void StoveSupervisor::begin() {
-}
-
 void StoveSupervisor::update() {
   dial_.update();
   beeper_.update();

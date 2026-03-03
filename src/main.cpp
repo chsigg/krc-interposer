@@ -12,6 +12,7 @@
 #include "Beeper.h"
 #include "BleTelemetry.h"
 #include "BleThermometer.h"
+#include "Blinker.h"
 #include "StoveActuator.h"
 #include "StoveDial.h"
 #include "StoveSupervisor.h"
@@ -64,6 +65,9 @@ StoveDial dial(dial_read_pin, throttle_config);
 // Feedback
 ArduinoBuzzer buzzer(NRF_PWM3, kBuzzerPPin, kBuzzerNPin);
 Beeper beeper(buzzer);
+ArduinoAnalogWritePin red_led(LED_RED);
+ArduinoDigitalWritePin blue_led(LED_BLUE);
+Blinker blue_blinker(blue_led);
 
 // Logic Modules
 TrendAnalyzer analyzer;
@@ -130,9 +134,12 @@ void setup() {
   dial_read_pin.begin();
   buzzer.begin();
   stove_pwm.begin();
+  red_led.begin();
+  blue_led.begin();
 
   Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.begin(1, 1);
+  Bluefruit.autoConnLed(false);
   Bluefruit.setTxPower(8);
   Bluefruit.setName("KRC Interposer");
   Bluefruit.Security.setIOCaps(false, false, false);
@@ -140,8 +147,6 @@ void setup() {
 
   thermometer.begin();
   telemetry.begin();
-
-  supervisor.begin();
 }
 
 static void log(uint32_t time_ms) {
@@ -164,6 +169,16 @@ void loop() {
   uint32_t now = millis();
 
   supervisor.update();
+
+  if (thermometer.connected()) {
+    blue_blinker.blink(Blinker::Signal::NONE);
+    blue_led.set(PinState::Low);
+  } else {
+    blue_blinker.blink(Blinker::Signal::REPEAT);
+  }
+  blue_blinker.update();
+
+  red_led.write(1.0f - controller.getPower());
 
   log(now);
   telemetry.update();

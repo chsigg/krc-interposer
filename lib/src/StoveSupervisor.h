@@ -26,7 +26,6 @@ public:
                   PowerOffCallback power_off_cb);
   virtual ~StoveSupervisor() = default;
 
-  void begin();
   void update();
 
 private:
