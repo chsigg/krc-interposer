@@ -30,17 +30,17 @@ void StoveActuator::update() {
     return;
   }
 
-  uint32_t now = millis();
+  uint32_t now_ms = millis();
   if (throttle_.boost < current_boost_) {
     float deboost_value = std::min(value, config_.max - 0.1f);
     pwm_pin_.write(deboost_value);
     current_boost_ = 0;
     is_boost_pulse_active_ = false;
-    last_boost_change_ms_ = now;
+    last_boost_change_ms_ = now_ms;
     return;
   }
 
-  if (now - last_boost_change_ms_ < 1000) {
+  if (now_ms - last_boost_change_ms_ < 1000) {
     return;
   }
 
@@ -52,5 +52,5 @@ void StoveActuator::update() {
   }
 
   is_boost_pulse_active_ = !is_boost_pulse_active_;
-  last_boost_change_ms_ = now;
+  last_boost_change_ms_ = now_ms;
 }

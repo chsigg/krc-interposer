@@ -23,11 +23,11 @@ void StoveSupervisor::update() {
   beeper_.update();
   thermometer_.update();
 
-  uint32_t now = millis();
+  uint32_t now_ms = millis();
   if (!dial_.isOff()) {
-    dial_off_start_ms_ = now;
+    dial_off_start_ms_ = now_ms;
   }
-  if (now - dial_off_start_ms_ > 5000 && power_off_cb_) {
+  if (now_ms - dial_off_start_ms_ > 5000 && power_off_cb_) {
     return power_off_cb_();
   }
 
@@ -44,13 +44,13 @@ void StoveSupervisor::update() {
     if (!thermometer_.connected()) {
       return transitionTo(State::DISCONNECTED);
     }
-    if (now - state_entry_ms_ > connected_wait_ms) {
+    if (now_ms - state_entry_ms_ > connected_wait_ms) {
       return transitionTo(State::ACTIVE);
     }
     break;
   case State::ACTIVE:
     if (!thermometer_.connected() ||
-        now - analyzer_.getLastUpdateMs() > disconnected_after_ms) {
+        now_ms - analyzer_.getLastUpdateMs() > disconnected_after_ms) {
       return transitionTo(State::DISCONNECTED);
     }
     if (float dial_target_temp =
@@ -65,11 +65,8 @@ void StoveSupervisor::update() {
     // Engage boost if we are > 20°C away (approx 60s of heating).
     // Disengage boost if we are < 10°C away and hand over to PID.
     is_temp_low_ = [&] {
-      if (controller_.isLidOpen()) {
-        return false;
-      }
-      float delta_temp = controller_.getTargetTemp() - analyzer_.getValue(now);
-      return delta_temp >= (is_temp_low_ ? 10.0f : 20.0f);
+      float delta_temp = controller_.getTargetTemp() - analyzer_.getValue(now_ms);
+      return !controller_.isLidOpen() && delta_temp >= (is_temp_low_ ? 10.0f : 20.0f);
     }();
 
     actuator_.setThrottle({is_temp_low_ ? 1.0f : controller_.getPower(),
@@ -77,7 +74,7 @@ void StoveSupervisor::update() {
     break;
   case State::DISCONNECTED:
     if (thermometer_.connected() &&
-        now - analyzer_.getLastUpdateMs() < disconnected_after_ms) {
+        now_ms - analyzer_.getLastUpdateMs() < disconnected_after_ms) {
       return transitionTo(State::ACTIVE);
     }
     break;

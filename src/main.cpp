@@ -137,7 +137,7 @@ static void log(uint32_t time_ms) {
 }
 
 void loop() {
-  uint32_t now = millis();
+  uint32_t now_ms = millis();
 
   supervisor.update();
 
@@ -151,7 +151,7 @@ void loop() {
 
   red_led.write(1.0f - controller.getPower());
 
-  log(now);
+  log(now_ms);
   telemetry.update();
 
   delay(20);

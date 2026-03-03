@@ -57,11 +57,11 @@ static void addDeniedClient(const uint8_t *address, uint32_t timeout_ms) {
 }
 
 static void trimDenyList() {
-  uint32_t now = millis();
+  uint32_t now_ms = millis();
   auto begin = sDenyList.begin();
   auto end = std::remove_if(
       begin, begin + sDenyListCount, [&](const DeniedClient &client) {
-        return client.deny_until_ms - now > std::numeric_limits<int32_t>::max();
+        return client.deny_until_ms - now_ms > std::numeric_limits<int32_t>::max();
       });
   sDenyListCount = std::distance(begin, end);
 }
@@ -114,14 +114,14 @@ void BleThermometer::update() {
     return;
   }
 
-  uint32_t now = millis();
-  if (now - last_rssi_read_ms_ < 10000) {
+  uint32_t now_ms = millis();
+  if (now_ms - last_rssi_read_ms_ < 10000) {
     return;
   }
 
   if (BLEConnection *conn = Bluefruit.Connection(service_.connHandle())) {
     Log << "RSSI: " << conn->getRssi() << " dBm\n";
-    last_rssi_read_ms_ = now;
+    last_rssi_read_ms_ = now_ms;
   }
 }
 

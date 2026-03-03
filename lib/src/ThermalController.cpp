@@ -22,7 +22,7 @@ void ThermalController::setTargetTemp(float temp) {
 }
 
 void ThermalController::update() {
-  uint32_t current_time_ms = millis();
+  uint32_t now_ms = millis();
   float slope = analyzer_.getSlope();
 
   if (slope < -config_.lid_open_threshold) {
@@ -38,13 +38,13 @@ void ThermalController::update() {
     lid_open_ = false;
   }
 
-  uint32_t future_time = current_time_ms + config_.system_lag_ms;
+  uint32_t future_time = now_ms + config_.system_lag_ms;
   float predicted_temp = analyzer_.getValue(future_time);
 
   float error = target_temp_ - predicted_temp;
   float p_out = error * config_.p_factor;
 
-  float current_temp = analyzer_.getValue(current_time_ms);
+  float current_temp = analyzer_.getValue(now_ms);
   float loss = (current_temp - config_.ambient_temp) * config_.heat_loss_factor;
 
   power_ = std::clamp(p_out + loss, 0.0f, 1.0f);

@@ -32,10 +32,10 @@ void Blinker::update() {
       {1000, PinState::High, 2},
   };
 
-  uint32_t now = millis();
+  uint32_t now_ms = millis();
   while (step_ < std::size(STATES)) {
 
-    if (now - step_end_ms_ > std::numeric_limits<int32_t>::max()) {
+    if (now_ms - step_end_ms_ > std::numeric_limits<int32_t>::max()) {
       return;
     }
 
@@ -44,6 +44,6 @@ void Blinker::update() {
     led_.set(state.pin_state);
 
     step_ = state.next_step;
-    step_end_ms_ = now + state.duration_ms;
+    step_end_ms_ = now_ms + state.duration_ms;
   }
 }
