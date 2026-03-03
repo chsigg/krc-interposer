@@ -154,7 +154,7 @@ void loop() {
   log(now);
   telemetry.update();
 
-  delay(100);
+  delay(20);
 }
 
 static void poweroff() {
