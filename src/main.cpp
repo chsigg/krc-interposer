@@ -1,6 +1,3 @@
-#include <Adafruit_TinyUSB.h>
-#include <Arduino.h>
-#include <algorithm>
 #include <bluefruit.h>
 #include <nrf_lpcomp.h>
 
@@ -36,14 +33,18 @@ public:
   }
 
   float read() const override {
-    float ref = ref_pin_.read();
-    return ref == 0.0f ? 0.0f : read_pin_.read() / ref;
+    if (float ref = ref_pin_.read(); ref > 0.0f) {
+      return read_pin_.read() / ref;
+    }
+    return 0.0f;
   }
 
 private:
-  ArduinoAnalogReadPin read_pin_{kDialReadPin, 1.0f};
-  ArduinoAnalogReadPin ref_pin_{kDialRefPin, 1.0f};
+  ArduinoAnalogReadPin read_pin_{kDialReadPin};
+  ArduinoAnalogReadPin ref_pin_{kDialRefPin};
 };
+
+static void poweroff();
 
 // --- Hardware Instantiation ---
 
@@ -78,43 +79,6 @@ ThermalController controller(analyzer, thermal_config);
 BleThermometer thermometer(analyzer);
 BleTelemetry telemetry(bleuart, controller, analyzer);
 
-static void poweroff() {
-  Log << "Powering off...\n";
-
-  beeper.beep(Beeper::Signal::POWER_OFF);
-  while (!beeper.isIdle()) {
-    delay(10);
-    beeper.update();
-  }
-
-  Serial.end();
-  thermometer.end();
-  telemetry.end();
-
-  for (int pin : {kBuzzerPPin, kBuzzerNPin}) {
-    pinMode(pin, INPUT_PULLDOWN);
-  }
-  for (int pin : {kStovePwmPin, kDialReadPin, kDialRefPin, kBypassPin, LED_RED,
-                  LED_GREEN, LED_BLUE}) {
-    pinMode(pin, INPUT);
-  }
-
-  // Set up boot trigger when pin is 7/8 of VDD.
-  nrf_lpcomp_disable(NRF_LPCOMP);
-  const nrf_lpcomp_config_t lpcomp_config = {.reference =
-                                                 NRF_LPCOMP_REF_SUPPLY_7_8,
-                                             .detection = NRF_LPCOMP_DETECT_UP,
-                                             .hyst = NRF_LPCOMP_HYST_ENABLED};
-  nrf_lpcomp_configure(NRF_LPCOMP, &lpcomp_config);
-  nrf_lpcomp_input_select(NRF_LPCOMP, NRF_LPCOMP_INPUT_3);
-  nrf_lpcomp_enable(NRF_LPCOMP);
-  nrf_lpcomp_task_trigger(NRF_LPCOMP, NRF_LPCOMP_TASK_START);
-  while (!nrf_lpcomp_event_check(NRF_LPCOMP, NRF_LPCOMP_EVENT_READY)) {
-  } // Wait for ready
-
-  sd_power_system_off();
-}
-
 // Supervisor
 StoveConfig stove_config;
 StoveSupervisor supervisor(dial, actuator, controller, beeper, analyzer,
@@ -123,7 +87,7 @@ StoveSupervisor supervisor(dial, actuator, controller, beeper, analyzer,
 
 void setup() {
   Serial.begin(115200);
-  while (!Serial && millis() < 5000) {
+  while (!Serial && millis() < 1000) {
     delay(10);
   }
 
@@ -134,6 +98,7 @@ void setup() {
   }
 
   analogReadResolution(12);
+  analogWriteResolution(12);
 
   bypass_pin.begin();
   bypass_pin.set(PinState::Low);
@@ -144,13 +109,10 @@ void setup() {
   red_led.begin();
   blue_led.begin();
 
-  Bluefruit.configPrphBandwidth(BANDWIDTH_MAX);
   Bluefruit.begin(1, 1);
   Bluefruit.autoConnLed(false);
   Bluefruit.setTxPower(8);
   Bluefruit.setName("KRC Interposer");
-  Bluefruit.Security.setIOCaps(false, false, false);
-  Bluefruit.Security.setMITM(false);
 
   thermometer.begin();
   telemetry.begin();
@@ -193,4 +155,41 @@ void loop() {
   telemetry.update();
 
   delay(100);
+}
+
+static void poweroff() {
+  Log << "Powering off...\n";
+
+  beeper.beep(Beeper::Signal::POWER_OFF);
+  while (!beeper.isIdle()) {
+    delay(10);
+    beeper.update();
+  }
+
+  Serial.end();
+  thermometer.end();
+  telemetry.end();
+
+  for (int pin : {kBuzzerPPin, kBuzzerNPin}) {
+    pinMode(pin, INPUT_PULLDOWN);
+  }
+  for (int pin : {kStovePwmPin, kDialReadPin, kDialRefPin, kBypassPin, LED_RED,
+                  LED_GREEN, LED_BLUE}) {
+    pinMode(pin, INPUT);
+  }
+
+  // Set up boot trigger when pin is 7/8 of VDD.
+  nrf_lpcomp_disable(NRF_LPCOMP);
+  const nrf_lpcomp_config_t lpcomp_config = {.reference =
+                                                 NRF_LPCOMP_REF_SUPPLY_7_8,
+                                             .detection = NRF_LPCOMP_DETECT_UP,
+                                             .hyst = NRF_LPCOMP_HYST_ENABLED};
+  nrf_lpcomp_configure(NRF_LPCOMP, &lpcomp_config);
+  nrf_lpcomp_input_select(NRF_LPCOMP, NRF_LPCOMP_INPUT_3);
+  nrf_lpcomp_enable(NRF_LPCOMP);
+  nrf_lpcomp_task_trigger(NRF_LPCOMP, NRF_LPCOMP_TASK_START);
+  while (!nrf_lpcomp_event_check(NRF_LPCOMP, NRF_LPCOMP_EVENT_READY)) {
+  } // Wait for ready
+
+  sd_power_system_off();
 }

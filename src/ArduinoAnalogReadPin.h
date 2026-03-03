@@ -5,16 +5,14 @@
 
 class ArduinoAnalogReadPin final : public AnalogReadPin {
 public:
-  explicit ArduinoAnalogReadPin(int pin, float scale)
-      : pin_(pin), scale_(scale) {}
+  explicit ArduinoAnalogReadPin(int pin) : pin_(pin) {}
 
   virtual void begin() {
     pinMode(pin_, INPUT);
   }
 
-  float read() const override { return analogRead(pin_) * scale_; }
+  float read() const override { return analogRead(pin_); }
 
 private:
   const int pin_;
-  const float scale_;
 };
