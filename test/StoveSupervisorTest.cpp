@@ -27,6 +27,7 @@ TEST_CASE("StoveSupervisor Logic") {
   Mock<TrendAnalyzer> analyzer_mock;
   Mock<ThermalController> controller_mock;
   Mock<Thermometer> thermometer_mock;
+  Mock<DigitalWritePin> bypass_mock;
   
   static bool poweroff_called = false;
   poweroff_called = false;
@@ -36,6 +37,7 @@ TEST_CASE("StoveSupervisor Logic") {
   StoveSupervisor supervisor(dial_mock.get(), actuator_mock.get(),
                              controller_mock.get(), beeper_mock.get(),
                              analyzer_mock.get(), thermometer_mock.get(),
+                             bypass_mock.get(),
                              stove_config, throttle_config, poweroff_fn);
 
   uint32_t current_time_ms = 0;
@@ -68,6 +70,7 @@ TEST_CASE("StoveSupervisor Logic") {
   Fake(Method(thermometer_mock, update));
   When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(0);
   When(Method(analyzer_mock, getValue)).AlwaysReturn(0.0f);
+  Fake(Method(bypass_mock, set));
 
   auto reset_actuator = [&]() {
     actuator_mock.Reset();

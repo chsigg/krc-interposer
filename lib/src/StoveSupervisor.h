@@ -20,6 +20,7 @@ public:
   StoveSupervisor(StoveDial &dial, StoveActuator &actuator,
                   ThermalController &controller, Beeper &beeper,
                   TrendAnalyzer &analyzer, Thermometer &thermometer,
+                  DigitalWritePin &bypass_pin,
                   const StoveConfig &stove_config,
                   const ThrottleConfig &throttle_config,
                   PowerOffCallback power_off_cb);
@@ -45,6 +46,7 @@ private:
   Beeper &beeper_;
   TrendAnalyzer &analyzer_;
   Thermometer &thermometer_;
+  DigitalWritePin &bypass_pin_;
   const StoveConfig stove_config_;
   const ThrottleConfig throttle_config_;
   PowerOffCallback power_off_cb_;

@@ -49,12 +49,12 @@ pio test -e native
 
 ## Code Design
 
-The firmware is designed with a strict separation of concerns, decoupling the high-level control logic from the underlying hardware to enable robust native testing. 
+The firmware is designed with a strict separation of concerns, decoupling the high-level control logic from the underlying hardware to enable robust native testing.
 
 *   **`StoveSupervisor` (State Machine):** The central orchestrator. It manages the high-level states (`SCANNING`, `CONNECTED`, `ACTIVE`, `DISCONNECTED`), handles timeouts (like the 5-second shutdown timer), triggers user feedback (beeps), and decides when to engage automatic hardware boost if the target temperature is far away.
 *   **`ThermalController` (PID Control):** Responsible for the closed-loop temperature logic. It calculates the necessary power output based on the error between the target and current temperatures. It also includes edge-case logic, such as detecting a sudden drop in temperature slope (indicating the lid was opened) and temporarily freezing the power output to prevent severe overshoot.
 *   **`StoveActuator` (Hardware Translation):** Translates abstract "throttle" commands (0.0 to 1.0 position, plus discrete boost levels) into concrete, timed PWM signals. It handles the complex pulse-sequencing required to activate the stove's native hardware boost modes.
 *   **`TrendAnalyzer`:** A statistical utility that buffers incoming BLE temperature readings. It smooths the data and calculates both the predicted current temperature (compensating for system lag) and the rate of change (slope).
 *   **`BleThermometer` (BLE Central):** Actively scans for and connects to supported Kuhn Rikon lids. It parses incoming temperature data and pushes it to the `TrendAnalyzer`.
-*   **`BleTelemetry` (BLE Peripheral):** Acts as a Bluetooth Peripheral, broadcasting internal state (target temperature, current temperature, and power output) to allow the companion app to monitor the process.
+*   **`BleTelemetry` (BLE Peripheral):** Acts as a Bluetooth Peripheral, broadcasting internal state (target temperature, current temperature, and log stream) to allow the companion app to monitor the process.
 *   **Hardware Abstractions:** Components like `AnalogWritePin` and `DigitalWritePin` wrap the Arduino-specific `analogWrite` and `digitalWrite` functions. This allows the core logic to be tested purely on the host machine using mock objects (via `ArduinoFake` and `doctest`) without requiring the physical hardware.

@@ -7,9 +7,8 @@
 extern "C" uint32_t millis();
 
 StoveActuator::StoveActuator(AnalogWritePin &pwm_pin,
-                             DigitalWritePin &bypass_pin,
                              const ThrottleConfig &config)
-    : pwm_pin_(pwm_pin), bypass_pin_(bypass_pin), config_(config) {
+    : pwm_pin_(pwm_pin), config_(config) {
 }
 
 void StoveActuator::setThrottle(StoveThrottle throttle) {
@@ -20,7 +19,6 @@ void StoveActuator::setThrottle(StoveThrottle throttle) {
   }
   throttle_ = throttle;
 
-  bypass_pin_.set(PinState::High);
   update();
 }
 

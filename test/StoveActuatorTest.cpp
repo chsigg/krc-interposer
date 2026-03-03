@@ -11,14 +11,12 @@ TEST_CASE("StoveActuator Logic") {
   Fake(Method(ArduinoFake(), delayMicroseconds));
   Fake(Method(ArduinoFake(), millis));
   Mock<AnalogWritePin> pwm_mock;
-  Mock<DigitalWritePin> bypass_mock;
 
-  Fake(Method(bypass_mock, set));
   Fake(Method(pwm_mock, write));
 
   ThrottleConfig config;
 
-  StoveActuator actuator(pwm_mock.get(), bypass_mock.get(), config);
+  StoveActuator actuator(pwm_mock.get(), config);
 
   SUBCASE("Normal operation (no boost)") {
     StoveThrottle throttle{.position = 0.5f, .boost = 0};

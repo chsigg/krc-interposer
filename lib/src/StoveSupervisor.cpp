@@ -10,11 +10,13 @@ StoveSupervisor::StoveSupervisor(StoveDial &dial, StoveActuator &actuator,
                                  ThermalController &controller, Beeper &beeper,
                                  TrendAnalyzer &analyzer,
                                  Thermometer &thermometer,
+                                 DigitalWritePin &bypass_pin,
                                  const StoveConfig &stove_config,
                                  const ThrottleConfig &throttle_config,
                                  PowerOffCallback power_off_cb)
     : dial_(dial), actuator_(actuator), controller_(controller),
       beeper_(beeper), analyzer_(analyzer), thermometer_(thermometer),
+      bypass_pin_(bypass_pin),
       stove_config_(stove_config), throttle_config_(throttle_config),
       power_off_cb_(power_off_cb) {}
 
@@ -98,6 +100,7 @@ void StoveSupervisor::transitionTo(State new_state) {
 
   state_ = new_state;
   state_entry_ms_ = millis();
+  bypass_pin_.set(state_ == State::SCANNING ? PinState::Low : PinState::High);
 
   switch (state_) {
   case State::SCANNING:

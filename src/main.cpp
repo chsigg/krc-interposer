@@ -55,7 +55,7 @@ Logger &Log = logger;
 ArduinoAnalogWritePin stove_pwm(kStovePwmPin);
 ArduinoDigitalWritePin bypass_pin(kBypassPin);
 ThrottleConfig throttle_config; // Defaults
-StoveActuator actuator(stove_pwm, bypass_pin, throttle_config);
+StoveActuator actuator(stove_pwm, throttle_config);
 
 // Sensors
 DialReadPin dial_read_pin;
@@ -107,7 +107,7 @@ static void poweroff() {
 // Supervisor
 StoveConfig stove_config;
 StoveSupervisor supervisor(dial, actuator, controller, beeper, analyzer,
-                           thermometer, stove_config, throttle_config,
+                           thermometer, bypass_pin, stove_config, throttle_config,
                            poweroff);
 
 void setup() {

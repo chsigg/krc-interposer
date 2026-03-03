@@ -7,7 +7,7 @@
 
 class StoveActuator {
 public:
-  StoveActuator(AnalogWritePin &pwm_pin, DigitalWritePin &bypass_pin, const ThrottleConfig &config);
+  StoveActuator(AnalogWritePin &pwm_pin, const ThrottleConfig &config);
   virtual ~StoveActuator() = default;
 
   virtual void setThrottle(StoveThrottle throttle);
@@ -15,7 +15,6 @@ public:
 
 private:
   AnalogWritePin &pwm_pin_;
-  DigitalWritePin &bypass_pin_;
   const ThrottleConfig config_;
 
   uint32_t current_boost_ = 0;
