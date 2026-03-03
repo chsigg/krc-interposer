@@ -60,9 +60,12 @@ TEST_CASE("StoveDial Logic") {
       CHECK(dial.getPosition() == doctest::Approx(1.0));
     }
 
-    SUBCASE("Above max") {
+    SUBCASE("Above max is ignored") {
+      set_reading(config.min);
+      CHECK(dial.getPosition() == doctest::Approx(config.min / config.max));
+
       set_reading(config.max + 0.05f);
-      CHECK(dial.getPosition() == doctest::Approx(1.0f));
+      CHECK(dial.getPosition() == doctest::Approx(config.min / config.max)); // Unchanged
     }
   }
 }
