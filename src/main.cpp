@@ -177,7 +177,7 @@ static void poweroff() {
                                              .detection = NRF_LPCOMP_DETECT_UP,
                                              .hyst = NRF_LPCOMP_HYST_ENABLED};
   nrf_lpcomp_configure(NRF_LPCOMP, &lpcomp_config);
-  nrf_lpcomp_input_select(NRF_LPCOMP, NRF_LPCOMP_INPUT_3);
+  nrf_lpcomp_input_select(NRF_LPCOMP, NRF_LPCOMP_INPUT_5);
   nrf_lpcomp_enable(NRF_LPCOMP);
   nrf_lpcomp_task_trigger(NRF_LPCOMP, NRF_LPCOMP_TASK_START);
   while (!nrf_lpcomp_event_check(NRF_LPCOMP, NRF_LPCOMP_EVENT_READY)) {
