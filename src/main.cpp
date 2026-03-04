@@ -33,7 +33,8 @@ public:
   }
 
   float read() const override {
-    if (float ref = ref_pin_.read(); ref > 0.0f) {
+    float ref = ref_pin_.read();
+    if (ref > 1 << ADC_RESOLUTION - 2) {
       return read_pin_.read() / ref;
     }
     return 0.0f;
@@ -67,8 +68,6 @@ StoveDial dial(dial_read_pin, throttle_config);
 ArduinoBuzzer buzzer(NRF_PWM3, kBuzzerPPin, kBuzzerNPin);
 Beeper beeper(buzzer);
 ArduinoAnalogWritePin red_led(LED_RED);
-ArduinoDigitalWritePin blue_led(LED_BLUE);
-Blinker blue_blinker(blue_led);
 
 // Logic Modules
 TrendAnalyzer analyzer;
@@ -97,8 +96,8 @@ void setup() {
     pinMode(pin, INPUT_PULLDOWN);
   }
 
-  analogReadResolution(12);
-  analogWriteResolution(12);
+  analogReadResolution(ADC_RESOLUTION);
+  analogWriteResolution(ADC_RESOLUTION);
 
   bypass_pin.begin();
   bypass_pin.set(PinState::Low);
@@ -107,7 +106,6 @@ void setup() {
   buzzer.begin();
   stove_pwm.begin();
   red_led.begin();
-  blue_led.begin();
 
   Bluefruit.begin(1, 1);
   Bluefruit.autoConnLed(false);
@@ -141,14 +139,6 @@ void loop() {
 
   supervisor.update();
 
-  if (thermometer.connected()) {
-    blue_blinker.blink(Blinker::Signal::NONE);
-    blue_led.set(PinState::Low);
-  } else {
-    blue_blinker.blink(Blinker::Signal::REPEAT);
-  }
-  blue_blinker.update();
-
   red_led.write(1.0f - controller.getPower());
 
   log(now_ms);
@@ -158,13 +148,15 @@ void loop() {
 }
 
 static void poweroff() {
-  Log << "Powering off...\n";
-
   beeper.beep(Beeper::Signal::POWER_OFF);
   while (!beeper.isIdle()) {
     delay(10);
     beeper.update();
   }
+
+  Log << "Powering off...\n";
+  Serial.flush();
+  telemetry.update();
 
   Serial.end();
   thermometer.end();

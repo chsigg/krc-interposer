@@ -13,7 +13,8 @@ public:
   }
 
   void write(float value) override {
-    int pwm = static_cast<int>(std::clamp(value, 0.0f, 1.0f) * 4095.0f);
+    static constexpr float kScale = (1 << ADC_RESOLUTION) - 1.0f;
+    int pwm = static_cast<int>(std::clamp(value, 0.0f, 1.0f) * kScale);
     analogWrite(pin_, pwm);
   }
 

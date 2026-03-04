@@ -77,11 +77,6 @@ BleThermometer::~BleThermometer() {
   }
 }
 
-static void globalDisconnectCallback(uint16_t conn_handle, uint8_t reason) {
-  Log << "globalDisconnectCallback(/*handle=*/" << conn_handle
-      << ", /*reason=*/" << reason << ")\n";
-}
-
 void BleThermometer::begin() {
   Log << "BleThermometer::begin()\n";
 
@@ -99,6 +94,9 @@ void BleThermometer::begin() {
   Bluefruit.Scanner.filterUuid(service_.uuid);
   Bluefruit.Scanner.restartOnDisconnect(true);
   Bluefruit.Scanner.start(0);
+
+  blue_led_.begin();
+  blue_blinker_.blink(Blinker::Signal::REPEAT);
 }
 
 void BleThermometer::end() {
@@ -110,6 +108,8 @@ void BleThermometer::end() {
 }
 
 void BleThermometer::update() {
+  blue_blinker_.update();
+
   if (!connected()) {
     return;
   }
@@ -242,7 +242,18 @@ void BleThermometer::globalConnectCallback(uint16_t conn_handle) {
   }
 
   disconnector.release();
+  sBleThermometer->blue_blinker_.blink(Blinker::Signal::NONE);
+  sBleThermometer->blue_led_.set(PinState::Low);
+
   Log << "  Connected\n";
+}
+
+void BleThermometer::globalDisconnectCallback(uint16_t conn_handle, uint8_t reason) {
+  Log << "globalDisconnectCallback(/*handle=*/" << conn_handle
+      << ", /*reason=*/" << reason << ")\n";
+  if (sBleThermometer) {
+    sBleThermometer->blue_blinker_.blink(Blinker::Signal::REPEAT);
+  }
 }
 
 void BleThermometer::globalNotifyCallback(
