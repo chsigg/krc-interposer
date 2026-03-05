@@ -1,5 +1,6 @@
 #include <bluefruit.h>
 #include <nrf_lpcomp.h>
+#include <nrf_pwm.h>
 
 #include "ArduinoAnalogReadPin.h"
 #include "ArduinoAnalogWritePin.h"
@@ -67,7 +68,6 @@ StoveDial dial(dial_read_pin, throttle_config);
 ArduinoBuzzer buzzer(NRF_PWM3, kBuzzerPPin, kBuzzerNPin);
 Beeper beeper(buzzer);
 ArduinoAnalogWritePin red_led(LED_RED);
-ArduinoDigitalWritePin green_led(LED_GREEN);
 
 // Logic Modules
 TrendAnalyzer analyzer;
@@ -106,10 +106,8 @@ void setup() {
   buzzer.begin();
   stove_pwm.begin();
   red_led.begin();
-  green_led.begin();
 
   beeper.beep(Beeper::Signal::POWER_ON);
-  green_led.set(PinState::Low);
 
   Bluefruit.begin(1, 1);
   Bluefruit.autoConnLed(false);
@@ -120,39 +118,16 @@ void setup() {
   telemetry.begin();
 }
 
-static void log(uint32_t time_ms) {
-  static uint32_t last_log_ms = 0;
-  if (time_ms - last_log_ms < 60 * 1000) {
-    return;
-  }
-  last_log_ms = time_ms;
-
-  if (analyzer.getLastUpdateMs() != 0) {
-    Log << "Analyzer: " << analyzer.getValue(last_log_ms) << "°C "
-        << analyzer.getSlope() << "°C/ms\n";
-  }
-  Log << "Dial: position " << dial.getPosition() << "\n";
-  Log << "Controller: power " << controller.getPower()
-      << (controller.isLidOpen() ? " (lid open)" : "") << "\n";
-}
-
 void loop() {
-  uint32_t now_ms = millis();
-
   thermometer.update();
   supervisor.update();
-
   red_led.write(1.0f - controller.getPower());
-
-  log(now_ms);
   telemetry.update();
-
   delay(20);
 }
 
 static void poweroff() {
   beeper.beep(Beeper::Signal::POWER_OFF);
-  green_led.set(PinState::High);
   while (!beeper.isIdle()) {
     delay(10);
     beeper.update();
@@ -166,12 +141,19 @@ static void poweroff() {
   thermometer.end();
   telemetry.end();
 
+  nrf_pwm_disable(NRF_PWM0);
+  nrf_pwm_disable(NRF_PWM1);
+  nrf_pwm_disable(NRF_PWM2);
+  nrf_pwm_disable(NRF_PWM3);
+
   for (int pin : {kBuzzerPPin, kBuzzerNPin}) {
     pinMode(pin, INPUT_PULLDOWN);
   }
-  for (int pin : {kStovePwmPin, kDialReadPin, kDialRefPin, kBypassPin, LED_RED,
-                  LED_GREEN, LED_BLUE}) {
+  for (int pin : {kStovePwmPin, kDialReadPin, kDialRefPin, kBypassPin}) {
     pinMode(pin, INPUT);
+  }
+  for (int pin : {LED_RED, LED_GREEN, LED_BLUE}) {
+    pinMode(pin, INPUT_PULLUP);
   }
 
   // Set up boot trigger when pin is 7/8 of VDD.
