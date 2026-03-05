@@ -4,7 +4,6 @@
 #include "StoveActuator.h"
 #include "StoveDial.h"
 #include "StoveThrottle.h"
-#include "Thermometer.h"
 #include "ThermalController.h"
 #include "TrendAnalyzer.h"
 
@@ -19,7 +18,7 @@ public:
 
   StoveSupervisor(StoveDial &dial, StoveActuator &actuator,
                   ThermalController &controller, Beeper &beeper,
-                  TrendAnalyzer &analyzer, Thermometer &thermometer,
+                  TrendAnalyzer &analyzer,
                   DigitalWritePin &bypass_pin,
                   const StoveConfig &stove_config,
                   const ThrottleConfig &throttle_config,
@@ -43,7 +42,6 @@ private:
   ThermalController &controller_;
   Beeper &beeper_;
   TrendAnalyzer &analyzer_;
-  Thermometer &thermometer_;
   DigitalWritePin &bypass_pin_;
   const StoveConfig stove_config_;
   const ThrottleConfig throttle_config_;

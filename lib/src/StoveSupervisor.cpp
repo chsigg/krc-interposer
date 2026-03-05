@@ -8,11 +8,11 @@ extern "C" uint32_t millis();
 
 StoveSupervisor::StoveSupervisor(
     StoveDial &dial, StoveActuator &actuator, ThermalController &controller,
-    Beeper &beeper, TrendAnalyzer &analyzer, Thermometer &thermometer,
+    Beeper &beeper, TrendAnalyzer &analyzer,
     DigitalWritePin &bypass_pin, const StoveConfig &stove_config,
     const ThrottleConfig &throttle_config, PowerOffCallback power_off_cb)
     : dial_(dial), actuator_(actuator), controller_(controller),
-      beeper_(beeper), analyzer_(analyzer), thermometer_(thermometer),
+      beeper_(beeper), analyzer_(analyzer),
       bypass_pin_(bypass_pin), stove_config_(stove_config),
       throttle_config_(throttle_config), power_off_cb_(power_off_cb) {}
 
@@ -21,7 +21,6 @@ static float lerp(float a, float b, float t) { return a + t * (b - a); }
 void StoveSupervisor::update() {
   dial_.update();
   beeper_.update();
-  thermometer_.update();
 
   uint32_t now_ms = millis();
   if (!dial_.isOff()) {
@@ -32,16 +31,15 @@ void StoveSupervisor::update() {
   }
 
   constexpr uint32_t connected_wait_ms = 1000;
-  constexpr uint32_t disconnected_after_ms = 30 * 1000;
 
   switch (state_) {
   case State::SCANNING:
-    if (thermometer_.connected()) {
+    if (analyzer_.connected()) {
       return transitionTo(State::CONNECTED);
     }
     break;
   case State::CONNECTED:
-    if (!thermometer_.connected()) {
+    if (!analyzer_.connected()) {
       return transitionTo(State::DISCONNECTED);
     }
     if (now_ms - state_entry_ms_ > connected_wait_ms) {
@@ -49,8 +47,7 @@ void StoveSupervisor::update() {
     }
     break;
   case State::ACTIVE:
-    if (!thermometer_.connected() ||
-        now_ms - analyzer_.getLastUpdateMs() > disconnected_after_ms) {
+    if (!analyzer_.connected()) {
       return transitionTo(State::DISCONNECTED);
     }
     if (float dial_target_temp =
@@ -73,8 +70,7 @@ void StoveSupervisor::update() {
                            is_temp_low_ ? throttle_config_.num_boosts : 0});
     break;
   case State::DISCONNECTED:
-    if (thermometer_.connected() &&
-        now_ms - analyzer_.getLastUpdateMs() < disconnected_after_ms) {
+    if (analyzer_.connected()) {
       return transitionTo(State::ACTIVE);
     }
     break;

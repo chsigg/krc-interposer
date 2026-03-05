@@ -1,5 +1,8 @@
-#include <doctest.h>
 #include "TrendAnalyzer.h"
+#include <ArduinoFake.h>
+#include <doctest.h>
+
+using namespace fakeit;
 
 TEST_CASE("TrendAnalyzer Logic") {
   TrendAnalyzer ta;
@@ -7,6 +10,15 @@ TEST_CASE("TrendAnalyzer Logic") {
   SUBCASE("Initial state") {
     CHECK(ta.getValue(0) == 0.0f);
     CHECK(ta.getSlope() == 0.0f);
+    CHECK_FALSE(ta.connected());
+  }
+
+  SUBCASE("Connection state") {
+    ta.setConnected(true);
+    CHECK(ta.connected());
+
+    ta.setConnected(false);
+    CHECK_FALSE(ta.connected());
   }
 
   SUBCASE("Single reading") {
@@ -69,7 +81,8 @@ TEST_CASE("TrendAnalyzer Logic") {
 
     ta.addReading(20.0f, 2000);
     // Should be perfect line now
-    CHECK(ta.getValue(3000) == doctest::Approx(30.0f)); // Value at latest time (3000)
+    CHECK(ta.getValue(3000) ==
+          doctest::Approx(30.0f)); // Value at latest time (3000)
     CHECK(ta.getSlope() == doctest::Approx(0.01f));
   }
 
@@ -87,7 +100,7 @@ TEST_CASE("TrendAnalyzer Logic") {
     // Slope = (20 - 10) / 2001 ~= 0.0049975
     CHECK(ta.getSlope() == doctest::Approx(0.0049975f).epsilon(0.001));
   }
-  
+
   SUBCASE("Clear") {
     ta.addReading(10.0f, 1000);
     ta.addReading(20.0f, 2000);

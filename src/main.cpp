@@ -34,7 +34,7 @@ public:
 
   float read() const override {
     float ref = ref_pin_.read();
-    if (ref > 1 << ADC_RESOLUTION - 2) {
+    if (ref > 1 << (ADC_RESOLUTION - 2)) {
       return read_pin_.read() / ref;
     }
     return 0.0f;
@@ -68,6 +68,7 @@ StoveDial dial(dial_read_pin, throttle_config);
 ArduinoBuzzer buzzer(NRF_PWM3, kBuzzerPPin, kBuzzerNPin);
 Beeper beeper(buzzer);
 ArduinoAnalogWritePin red_led(LED_RED);
+ArduinoDigitalWritePin green_led(LED_GREEN);
 
 // Logic Modules
 TrendAnalyzer analyzer;
@@ -81,7 +82,7 @@ BleTelemetry telemetry(bleuart, controller, analyzer);
 // Supervisor
 StoveConfig stove_config;
 StoveSupervisor supervisor(dial, actuator, controller, beeper, analyzer,
-                           thermometer, bypass_pin, stove_config,
+                           bypass_pin, stove_config,
                            throttle_config, poweroff);
 
 void setup() {
@@ -106,6 +107,10 @@ void setup() {
   buzzer.begin();
   stove_pwm.begin();
   red_led.begin();
+  green_led.begin();
+
+  beeper.beep(Beeper::Signal::POWER_ON);
+  green_led.set(PinState::Low);
 
   Bluefruit.begin(1, 1);
   Bluefruit.autoConnLed(false);
@@ -114,8 +119,6 @@ void setup() {
 
   thermometer.begin();
   telemetry.begin();
-
-  beeper.beep(Beeper::Signal::POWER_ON);
 }
 
 static void log(uint32_t time_ms) {
@@ -137,6 +140,7 @@ static void log(uint32_t time_ms) {
 void loop() {
   uint32_t now_ms = millis();
 
+  thermometer.update();
   supervisor.update();
 
   red_led.write(1.0f - controller.getPower());
@@ -149,6 +153,7 @@ void loop() {
 
 static void poweroff() {
   beeper.beep(Beeper::Signal::POWER_OFF);
+  green_led.set(PinState::High);
   while (!beeper.isIdle()) {
     delay(10);
     beeper.update();

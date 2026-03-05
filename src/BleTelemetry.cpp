@@ -2,6 +2,7 @@
 #include "Logger.h"
 #include "sfloat.h"
 #include <Arduino.h>
+#include <cmath>
 
 static void connectCallback(uint16_t conn_handle) {
   BLEConnection *conn = Bluefruit.Connection(conn_handle);
@@ -81,8 +82,12 @@ void BleTelemetry::update() {
   auto controller_temp = encodeIEEE11073(thermal_controller_.getTargetTemp());
   target_temp_.notify(controller_temp.data(), controller_temp.size());
 
-  if (trend_analyzer_.getLastUpdateMs() != 0) {
-    auto trend_temp = encodeIEEE11073(trend_analyzer_.getValue(millis()));
-    current_temp_.notify(trend_temp.data(), trend_temp.size());
+  float current_temp = std::numeric_limits<float>::quiet_NaN();
+  if (trend_analyzer_.connected() && trend_analyzer_.getLastUpdateMs() != 0) {
+    current_temp = trend_analyzer_.getValue(millis());
   }
+
+  auto encoded_temp = encodeIEEE11073(current_temp);
+  current_temp_.notify(encoded_temp.data(), encoded_temp.size());
+  Log << "BleTelemetry::update(" << current_temp << " -> 0x" << encoded_temp[0] << encoded_temp[1] << encoded_temp[2] << encoded_temp[3] << encoded_temp[4] << ")\n";
 }

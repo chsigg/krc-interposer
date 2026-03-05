@@ -35,6 +35,13 @@ public:
     return getAnalysisResult().last_update_ms;
   }
 
+  virtual bool connected() const {
+    return connected_.load(std::memory_order_relaxed);
+  }
+  void setConnected(bool connected) {
+    connected_.store(connected, std::memory_order_relaxed);
+  }
+
 private:
   const AnalysisResult &getAnalysisResult() const {
     return results_[current_result_index_.load(std::memory_order_acquire)];
@@ -47,4 +54,5 @@ private:
 
   std::array<AnalysisResult, 2> results_;
   std::atomic<int> current_result_index_{0};
+  std::atomic<bool> connected_ = false;
 };

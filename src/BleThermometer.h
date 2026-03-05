@@ -45,4 +45,5 @@ private:
   BLEClientService service_= {UUID16_SVC_HEALTH_THERMOMETER};
   IntermediateTemp char_  = {this};
   uint32_t last_rssi_read_ms_ = 0;
+  uint32_t last_data_ms_ = 0;
 };

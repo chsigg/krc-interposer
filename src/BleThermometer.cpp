@@ -59,10 +59,11 @@ static void addDeniedClient(const uint8_t *address, uint32_t timeout_ms) {
 static void trimDenyList() {
   uint32_t now_ms = millis();
   auto begin = sDenyList.begin();
-  auto end = std::remove_if(
-      begin, begin + sDenyListCount, [&](const DeniedClient &client) {
-        return client.deny_until_ms - now_ms > std::numeric_limits<int32_t>::max();
-      });
+  auto end = std::remove_if(begin, begin + sDenyListCount,
+                            [&](const DeniedClient &client) {
+                              return client.deny_until_ms - now_ms >
+                                     std::numeric_limits<int32_t>::max();
+                            });
   sDenyListCount = std::distance(begin, end);
 }
 
@@ -102,15 +103,16 @@ void BleThermometer::begin() {
 void BleThermometer::end() {
   Bluefruit.Scanner.restartOnDisconnect(false);
   Bluefruit.Scanner.stop();
-  if (connected()) {
+  if (service_.discovered()) {
     Bluefruit.disconnect(service_.connHandle());
   }
 }
 
 void BleThermometer::update() {
   blue_blinker_.update();
+  analyzer_.setConnected(connected());
 
-  if (!connected()) {
+  if (!service_.discovered()) {
     return;
   }
 
@@ -125,7 +127,9 @@ void BleThermometer::update() {
   }
 }
 
-bool BleThermometer::connected() { return service_.discovered(); }
+bool BleThermometer::connected() {
+  return service_.discovered() && millis() - last_data_ms_ < 30 * 1000;
+}
 
 bool BleThermometer::connectCallback(const char *name) {
   Log << "BleThermometer::connectCallback(" << name << ")\n";
@@ -149,7 +153,9 @@ void BleThermometer::notifyCallback(uint8_t *data, uint16_t len) {
 
   Log << "BleThermometer::notifyCallback(" << temp << "°C)\n";
 
-  analyzer_.addReading(temp, millis());
+  uint32_t now_ms = millis();
+  last_data_ms_ = now_ms;
+  analyzer_.addReading(temp, now_ms);
 }
 
 void BleThermometer::globalScanCallback(ble_gap_evt_adv_report_t *report) {
@@ -216,7 +222,7 @@ void BleThermometer::globalConnectCallback(uint16_t conn_handle) {
     return;
   }
 
-  delay(100);  // Let the stack negotiate connection.
+  delay(100); // Let the stack negotiate connection.
 
   if (!sBleThermometer->service_.discover(conn_handle)) {
     Log << "  Service discovery failed\n";
@@ -244,11 +250,13 @@ void BleThermometer::globalConnectCallback(uint16_t conn_handle) {
   disconnector.release();
   sBleThermometer->blue_blinker_.blink(Blinker::Signal::NONE);
   sBleThermometer->blue_led_.set(PinState::Low);
+  sBleThermometer->last_data_ms_ = millis();
 
   Log << "  Connected\n";
 }
 
-void BleThermometer::globalDisconnectCallback(uint16_t conn_handle, uint8_t reason) {
+void BleThermometer::globalDisconnectCallback(uint16_t conn_handle,
+                                              uint8_t reason) {
   Log << "globalDisconnectCallback(/*handle=*/" << conn_handle
       << ", /*reason=*/" << reason << ")\n";
   if (sBleThermometer) {
