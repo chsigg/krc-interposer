@@ -10,6 +10,7 @@ public:
     NONE,
     ONCE,
     REPEAT,
+    SOLID,
   };
 
   explicit Blinker(DigitalWritePin &led);
@@ -20,6 +21,8 @@ public:
 private:
   DigitalWritePin &led_;
 
-  uint8_t step_ = 0;
+  uint8_t step_ = kIdleStep;
   uint32_t step_end_ms_ = 0;
+
+  static constexpr uint8_t kIdleStep = 255;
 };

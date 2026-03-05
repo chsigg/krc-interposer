@@ -33,6 +33,7 @@ private:
 
   static void globalScanCallback(ble_gap_evt_adv_report_t *report);
   static void globalConnectCallback(uint16_t conn_handle);
+  static void globalSecuredCallback(uint16_t conn_handle);
   static void globalDisconnectCallback(uint16_t conn_handle, uint8_t reason);
   static void globalNotifyCallback(BLEClientCharacteristic *chr, uint8_t *data,
                                    uint16_t len);

@@ -83,6 +83,9 @@ void BleThermometer::begin() {
 
   Bluefruit.Central.setConnectCallback(globalConnectCallback);
   Bluefruit.Central.setDisconnectCallback(globalDisconnectCallback);
+  Bluefruit.Security.setIOCaps(false, false, false);
+  Bluefruit.Security.setMITM(false);
+  Bluefruit.Security.setSecuredCallback(BleThermometer::globalSecuredCallback);
 
   service_.begin();
   char_.setNotifyCallback(globalNotifyCallback);
@@ -122,7 +125,7 @@ void BleThermometer::update() {
   }
 
   if (BLEConnection *conn = Bluefruit.Connection(service_.connHandle())) {
-    Log << "RSSI: " << conn->getRssi() << " dBm\n";
+    Log << "RSSI: " << conn->getRssi() << "dBm\n";
     last_rssi_read_ms_ = now_ms;
   }
 }
@@ -222,18 +225,34 @@ void BleThermometer::globalConnectCallback(uint16_t conn_handle) {
     return;
   }
 
-  delay(100); // Let the stack negotiate connection.
-
-  if (!sBleThermometer->service_.discover(conn_handle)) {
-    Log << "  Service discovery failed\n";
-    return;
-  }
-
   if (!sBleThermometer->connectCallback(name.data())) {
     addDeniedClient(conn->getPeerAddr().addr, 10 * 60 * 1000);
     Log << "  Refused to connect, added ";
     logAddress(conn->getPeerAddr().addr);
     Log << " to deny list\n";
+    return;
+  }
+
+  disconnector.release();
+
+  delay(100); // Let the peripheral stack settle before pairing
+  Log << "  Requesting pairing...\n";
+  conn->requestPairing();
+}
+
+void BleThermometer::globalSecuredCallback(uint16_t conn_handle) {
+  Log << "BleThermometer::globalSecuredCallback(" << conn_handle << ")\n";
+
+  BLEConnection *conn = Bluefruit.Connection(conn_handle);
+  if (!conn || !sBleThermometer) {
+    return;
+  }
+
+  std::unique_ptr<BLEConnection, void (*)(BLEConnection *)> disconnector(
+      conn, [](BLEConnection *connection) { connection->disconnect(); });
+
+  if (!sBleThermometer->service_.discover(conn_handle)) {
+    Log << "  Service discovery failed\n";
     return;
   }
 
@@ -248,17 +267,23 @@ void BleThermometer::globalConnectCallback(uint16_t conn_handle) {
   }
 
   disconnector.release();
-  sBleThermometer->blue_blinker_.blink(Blinker::Signal::NONE);
-  sBleThermometer->blue_led_.set(PinState::Low);
+  sBleThermometer->blue_blinker_.blink(Blinker::Signal::SOLID);
   sBleThermometer->last_data_ms_ = millis();
 
-  Log << "  Connected\n";
+  conn->monitorRssi();
+  Log << "  Connected & Secured\n";
 }
 
 void BleThermometer::globalDisconnectCallback(uint16_t conn_handle,
                                               uint8_t reason) {
   Log << "globalDisconnectCallback(/*handle=*/" << conn_handle
       << ", /*reason=*/" << reason << ")\n";
+
+  if (BLEConnection *conn = Bluefruit.Connection(conn_handle)) {
+    Log << "  Adding to deny list for 5s cooldown\n";
+    addDeniedClient(conn->getPeerAddr().addr, 5000);
+  }
+
   if (sBleThermometer) {
     sBleThermometer->blue_blinker_.blink(Blinker::Signal::REPEAT);
   }

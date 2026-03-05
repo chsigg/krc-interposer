@@ -89,5 +89,4 @@ void BleTelemetry::update() {
 
   auto encoded_temp = encodeIEEE11073(current_temp);
   current_temp_.notify(encoded_temp.data(), encoded_temp.size());
-  Log << "BleTelemetry::update(" << current_temp << " -> 0x" << encoded_temp[0] << encoded_temp[1] << encoded_temp[2] << encoded_temp[3] << encoded_temp[4] << ")\n";
 }

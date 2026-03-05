@@ -17,8 +17,7 @@ void StoveDial::update() {
   if (std::fabs(value_ - printed_value_) < 0.02f) {
     return;
   }
-  Log << "StoveDial::update() value " << value_ << ", position " << position_
-      << "\n";
+  Log << "StoveDial::update() value " << value_ << "\n";
   printed_value_ = value_;
 }
 

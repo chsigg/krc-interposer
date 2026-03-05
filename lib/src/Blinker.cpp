@@ -23,12 +23,10 @@ void Blinker::update() {
     PinState pin_state;
     uint8_t next_step;
   } STATES[] = {
-      // None
-      {0, PinState::High, 255},
-      // Once
+      {0, PinState::High, kIdleStep},
       {100, PinState::Low, 0},
-      // Repeat
-      {100, PinState::Low, 3},
+      {100, PinState::Low, 4},
+      {0, PinState::Low, kIdleStep},
       {1000, PinState::High, 2},
   };
 

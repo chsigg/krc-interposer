@@ -9,7 +9,6 @@
 #include "Beeper.h"
 #include "BleTelemetry.h"
 #include "BleThermometer.h"
-#include "Blinker.h"
 #include "StoveActuator.h"
 #include "StoveDial.h"
 #include "StoveSupervisor.h"
