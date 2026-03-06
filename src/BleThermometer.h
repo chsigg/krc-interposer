@@ -7,10 +7,9 @@
 
 #include "ArduinoDigitalWritePin.h"
 #include "Blinker.h"
-#include "Thermometer.h"
 #include "TrendAnalyzer.h"
 
-class BleThermometer : public Thermometer {
+class BleThermometer {
 
   class IntermediateTemp final : public BLEClientCharacteristic {
   public:
@@ -26,7 +25,7 @@ public:
 
   void begin();
   void end();
-  void update() override;
+  void update();
 
 private:
   enum class State {
