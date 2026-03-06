@@ -41,7 +41,6 @@ private:
   void transitionTo(State new_state);
   const char *getStateName(State state) const;
 
-  bool connectCallback(const char *name);
   void notifyCallback(uint8_t *data, uint16_t len);
 
   static void globalScanCallback(ble_gap_evt_adv_report_t *report);

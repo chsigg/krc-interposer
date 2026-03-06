@@ -134,18 +134,17 @@ static void poweroff() {
   }
 
   Log << "Powering off...\n";
+
+  thermometer.end();
+
   Serial.flush();
   telemetry.update();
-
   Serial.end();
-  thermometer.end();
   telemetry.end();
 
-  nrf_pwm_disable(NRF_PWM0);
-  nrf_pwm_disable(NRF_PWM1);
-  nrf_pwm_disable(NRF_PWM2);
-  nrf_pwm_disable(NRF_PWM3);
-
+  for (auto pwm : {NRF_PWM0, NRF_PWM1, NRF_PWM2, NRF_PWM3}) {
+    nrf_pwm_disable(pwm);
+  }
   for (int pin : {kBuzzerPPin, kBuzzerNPin}) {
     pinMode(pin, INPUT_PULLDOWN);
   }

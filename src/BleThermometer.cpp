@@ -131,31 +131,17 @@ void BleThermometer::update() {
     if (elapsed_ms <= 500) {
       break;
     }
-    Log << "Discovering service...\n";
     transitionTo(State::DISCOVERING_SERVICE);
-    if (service_.discover(conn_handle_)) {
-      BLEConnection *conn = Bluefruit.Connection(conn_handle_);
-      std::array<char, 32> name = {};
-      if (conn) {
-        conn->getPeerName(name.data(), name.size() - 1);
-      }
+    break;
 
-      if (connectCallback(name.data())) {
-        transitionTo(State::DISCOVERING_CHAR);
-      } else {
-        Log << "Refused to connect, name mismatch: " << name.data() << "\n";
-        if (conn) {
-          addDeniedClient(conn->getPeerAddr().addr, 10 * 60 * 1000);
-        }
-        transitionTo(State::IDLE);
-      }
+  case State::DISCOVERING_SERVICE:
+    Log << "Discovering service...\n";
+    if (service_.discover(conn_handle_)) {
+      transitionTo(State::DISCOVERING_CHAR);
     } else {
       Log << "Service discovery failed\n";
       transitionTo(State::IDLE);
     }
-    break;
-
-  case State::DISCOVERING_SERVICE:
     break;
 
   case State::DISCOVERING_CHAR:
@@ -244,18 +230,6 @@ const char *BleThermometer::getStateName(State state) const {
   return "UNKNOWN";
 }
 
-bool BleThermometer::connectCallback(const char *name) {
-  Log << "BleThermometer::connectCallback(" << name << ")\n";
-
-  for (const char *supported_name : {"DUROMATIC", "HOTPAN", "FAKEPOT"}) {
-    if (strcmp(name, supported_name) == 0) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 void BleThermometer::notifyCallback(uint8_t *data, uint16_t len) {
   if (len < 5) {
     return; // Flags (1) + Float (4) minimum
@@ -301,12 +275,31 @@ void BleThermometer::globalScanCallback(ble_gap_evt_adv_report_t *report) {
 void BleThermometer::globalConnectCallback(uint16_t conn_handle) {
   Log << "BleThermometer::globalConnectCallback(" << conn_handle << ")\n";
 
-  if (!sBleThermometer || sBleThermometer->state_ != State::CONNECTING) {
+  BLEConnection *conn = Bluefruit.Connection(conn_handle);
+  if (!sBleThermometer || sBleThermometer->state_ != State::CONNECTING || !conn) {
     Bluefruit.disconnect(conn_handle);
     return;
   }
 
+  std::array<char, 32> peer_name = {};
+  conn->getPeerName(peer_name.data(), peer_name.size() - 1);
+  Log << "Connected to " << peer_name.data() << "\n";
   sBleThermometer->conn_handle_ = conn_handle;
+
+  static constexpr const char *kNames[] = {
+      "DUROMATIC",
+      "HOTPAN",
+      "FAKEPOT",
+  };
+  auto pred = [&](const char *name) {
+    return strcmp(peer_name.data(), name) == 0;
+  };
+  if (std::none_of(std::begin(kNames), std::end(kNames), pred)) {
+    Log << "Unrecognized name, disconnecting\n";
+    sBleThermometer->transitionTo(State::IDLE);
+    return;
+  }
+
   sBleThermometer->transitionTo(State::CONNECTED);
 }
 
