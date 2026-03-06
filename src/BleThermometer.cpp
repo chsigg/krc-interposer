@@ -102,9 +102,6 @@ void BleThermometer::begin() {
 
 void BleThermometer::end() {
   Bluefruit.Scanner.stop();
-  if (conn_handle_ != BLE_CONN_HANDLE_INVALID) {
-    Bluefruit.disconnect(conn_handle_);
-  }
   transitionTo(State::IDLE);
 }
 
@@ -137,10 +134,24 @@ void BleThermometer::update() {
     Log << "Discovering service...\n";
     transitionTo(State::DISCOVERING_SERVICE);
     if (service_.discover(conn_handle_)) {
-      transitionTo(State::DISCOVERING_CHAR);
+      BLEConnection *conn = Bluefruit.Connection(conn_handle_);
+      std::array<char, 32> name = {};
+      if (conn) {
+        conn->getPeerName(name.data(), name.size() - 1);
+      }
+
+      if (connectCallback(name.data())) {
+        transitionTo(State::DISCOVERING_CHAR);
+      } else {
+        Log << "Refused to connect, name mismatch: " << name.data() << "\n";
+        if (conn) {
+          addDeniedClient(conn->getPeerAddr().addr, 10 * 60 * 1000);
+        }
+        transitionTo(State::IDLE);
+      }
     } else {
       Log << "Service discovery failed\n";
-      Bluefruit.disconnect(conn_handle_);
+      transitionTo(State::IDLE);
     }
     break;
 
@@ -156,7 +167,7 @@ void BleThermometer::update() {
       transitionTo(State::ENABLING_NOTIFY);
     } else {
       Log << "Char discovery failed\n";
-      Bluefruit.disconnect(conn_handle_);
+      transitionTo(State::IDLE);
     }
     break;
 
@@ -172,7 +183,7 @@ void BleThermometer::update() {
       }
     } else {
       Log << "Enable notify failed\n";
-      Bluefruit.disconnect(conn_handle_);
+      transitionTo(State::IDLE);
     }
     break;
 
@@ -200,7 +211,9 @@ void BleThermometer::transitionTo(State new_state) {
 
   switch (state_) {
   case State::IDLE:
-    conn_handle_ = BLE_CONN_HANDLE_INVALID;
+    if (conn_handle_ != BLE_CONN_HANDLE_INVALID) {
+      Bluefruit.disconnect(conn_handle_);
+    }
     blue_blinker_.blink(Blinker::Signal::REPEAT);
     break;
   case State::ONLINE:
@@ -293,21 +306,6 @@ void BleThermometer::globalConnectCallback(uint16_t conn_handle) {
     return;
   }
 
-  BLEConnection *conn = Bluefruit.Connection(conn_handle);
-  if (!conn) {
-    sBleThermometer->transitionTo(State::IDLE);
-    return;
-  }
-
-  std::array<char, 32> name = {};
-  conn->getPeerName(name.data(), name.size() - 1);
-
-  if (!sBleThermometer->connectCallback(name.data())) {
-    addDeniedClient(conn->getPeerAddr().addr, 10 * 60 * 1000);
-    Bluefruit.disconnect(conn_handle);
-    return;
-  }
-
   sBleThermometer->conn_handle_ = conn_handle;
   sBleThermometer->transitionTo(State::CONNECTED);
 }
@@ -324,6 +322,7 @@ void BleThermometer::globalDisconnectCallback(uint16_t conn_handle,
   if (BLEConnection *conn = Bluefruit.Connection(conn_handle)) {
     addDeniedClient(conn->getPeerAddr().addr, 5000);
   }
+  sBleThermometer->conn_handle_ = BLE_CONN_HANDLE_INVALID;
   sBleThermometer->transitionTo(State::IDLE);
 }
 

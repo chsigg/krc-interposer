@@ -6,6 +6,7 @@ Always refer to these guidelines when making modifications or suggesting changes
 ## General Agent Guidelines
 - **Be cautious with code changes:** Resist your urge to write code. Do not assume the user wants you to write code.
 - **Ask before acting:** Whenever you want to make unrelated changes or fixes, you MUST ask the user first.
+- **Fresh Context:** ALWAYS read the latest content of a file before attempting to modify it, to ensure your edits are based on the most current state.
 
 ## Project Overview
 The KRC Interposer is a smart hardware device that sits between an induction stove and its physical control dial. It upgrades the standard dial into a closed-loop PID temperature controller by connecting to Kuhn Rikon Comfort (KRC) smart cookware (Hotpan, Duromatic) via BLE.
