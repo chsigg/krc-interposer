@@ -83,9 +83,6 @@ void BleThermometer::begin() {
 
   Bluefruit.Central.setConnectCallback(globalConnectCallback);
   Bluefruit.Central.setDisconnectCallback(globalDisconnectCallback);
-  Bluefruit.Security.setIOCaps(false, false, false);
-  Bluefruit.Security.setMITM(false);
-  Bluefruit.Security.setSecuredCallback(BleThermometer::globalSecuredCallback);
 
   service_.begin();
   char_.setNotifyCallback(globalNotifyCallback);
@@ -96,7 +93,7 @@ void BleThermometer::begin() {
   Bluefruit.Scanner.setInterval(160, 40);
   Bluefruit.Scanner.useActiveScan(false);
   Bluefruit.Scanner.filterUuid(service_.uuid);
-  Bluefruit.Scanner.restartOnDisconnect(true);
+  Bluefruit.Scanner.restartOnDisconnect(false);
   Bluefruit.Scanner.start(0);
 
   blue_led_.begin();
@@ -104,44 +101,143 @@ void BleThermometer::begin() {
 }
 
 void BleThermometer::end() {
-  Bluefruit.Scanner.restartOnDisconnect(false);
   Bluefruit.Scanner.stop();
-  if (service_.discovered()) {
-    Bluefruit.disconnect(service_.connHandle());
+  if (conn_handle_ != BLE_CONN_HANDLE_INVALID) {
+    Bluefruit.disconnect(conn_handle_);
   }
+  transitionTo(State::IDLE);
 }
 
 void BleThermometer::update() {
   blue_blinker_.update();
-  analyzer_.setConnected(connected());
-
-  if (!service_.discovered()) {
-    return;
-  }
+  analyzer_.setConnected(millis() - last_data_ms_ < 30 * 1000);
 
   uint32_t now_ms = millis();
-  if (now_ms - last_rssi_read_ms_ < 10000) {
-    return;
-  }
+  uint32_t elapsed_ms = now_ms - state_entry_ms_;
 
-  if (BLEConnection *conn = Bluefruit.Connection(service_.connHandle())) {
-    Log << "RSSI: " << conn->getRssi() << "dBm\n";
-    last_rssi_read_ms_ = now_ms;
+  switch (state_) {
+  case State::IDLE:
+    if (!Bluefruit.Scanner.isRunning()) {
+      Log << "Resuming scanner\n";
+      Bluefruit.Scanner.start(0);
+    }
+    break;
+
+  case State::CONNECTING:
+    if (elapsed_ms > 10000) {
+      Log << "Connection timeout\n";
+      transitionTo(State::IDLE);
+    }
+    break;
+
+  case State::CONNECTED:
+    if (elapsed_ms <= 500) {
+      break;
+    }
+    Log << "Discovering service...\n";
+    transitionTo(State::DISCOVERING_SERVICE);
+    if (service_.discover(conn_handle_)) {
+      transitionTo(State::DISCOVERING_CHAR);
+    } else {
+      Log << "Service discovery failed\n";
+      Bluefruit.disconnect(conn_handle_);
+    }
+    break;
+
+  case State::DISCOVERING_SERVICE:
+    break;
+
+  case State::DISCOVERING_CHAR:
+    if (elapsed_ms <= 200) {
+      break;
+    }
+    Log << "Discovering characteristic...\n";
+    if (char_.discover()) {
+      transitionTo(State::ENABLING_NOTIFY);
+    } else {
+      Log << "Char discovery failed\n";
+      Bluefruit.disconnect(conn_handle_);
+    }
+    break;
+
+  case State::ENABLING_NOTIFY:
+    if (elapsed_ms <= 200) {
+      break;
+    }
+    Log << "Enabling notifications...\n";
+    if (char_.enableNotify()) {
+      transitionTo(State::ONLINE);
+      if (BLEConnection *conn = Bluefruit.Connection(conn_handle_)) {
+        conn->monitorRssi();
+      }
+    } else {
+      Log << "Enable notify failed\n";
+      Bluefruit.disconnect(conn_handle_);
+    }
+    break;
+
+  case State::ONLINE:
+    if (now_ms - last_rssi_read_ms_ > 10000) {
+      if (BLEConnection *conn = Bluefruit.Connection(conn_handle_)) {
+        Log << "RSSI: " << conn->getRssi() << "dBm\n";
+        last_rssi_read_ms_ = now_ms;
+      }
+    }
+    break;
   }
 }
 
-bool BleThermometer::connected() {
-  return service_.discovered() && millis() - last_data_ms_ < 30 * 1000;
+void BleThermometer::transitionTo(State new_state) {
+  if (state_ == new_state) {
+    return;
+  }
+
+  Log << "BleThermometer: " << getStateName(state_) << " -> "
+      << getStateName(new_state) << "\n";
+
+  state_ = new_state;
+  state_entry_ms_ = millis();
+
+  switch (state_) {
+  case State::IDLE:
+    conn_handle_ = BLE_CONN_HANDLE_INVALID;
+    blue_blinker_.blink(Blinker::Signal::REPEAT);
+    break;
+  case State::ONLINE:
+    blue_blinker_.blink(Blinker::Signal::SOLID);
+    break;
+  default:
+    break;
+  }
+}
+
+const char *BleThermometer::getStateName(State state) const {
+  switch (state) {
+  case State::IDLE:
+    return "IDLE";
+  case State::CONNECTING:
+    return "CONNECTING";
+  case State::CONNECTED:
+    return "CONNECTED";
+  case State::DISCOVERING_SERVICE:
+    return "DISCOVERING_SERVICE";
+  case State::DISCOVERING_CHAR:
+    return "DISCOVERING_CHAR";
+  case State::ENABLING_NOTIFY:
+    return "ENABLING_NOTIFY";
+  case State::ONLINE:
+    return "ONLINE";
+  }
+  return "UNKNOWN";
 }
 
 bool BleThermometer::connectCallback(const char *name) {
   Log << "BleThermometer::connectCallback(" << name << ")\n";
 
   for (const char *supported_name : {"DUROMATIC", "HOTPAN", "FAKEPOT"}) {
-    if (strcmp(name, supported_name) != 0) {
-      continue;
+    if (strcmp(name, supported_name) == 0) {
+      return true;
     }
-    return true;
   }
 
   return false;
@@ -153,7 +249,6 @@ void BleThermometer::notifyCallback(uint8_t *data, uint16_t len) {
   }
 
   float temp = decodeIEEE11073(data, len);
-
   Log << "BleThermometer::notifyCallback(" << temp << "°C)\n";
 
   uint32_t now_ms = millis();
@@ -162,116 +257,59 @@ void BleThermometer::notifyCallback(uint8_t *data, uint16_t len) {
 }
 
 void BleThermometer::globalScanCallback(ble_gap_evt_adv_report_t *report) {
+  if (!sBleThermometer || sBleThermometer->state_ != State::IDLE) {
+    return;
+  }
+
   std::array<uint8_t, BLE_GAP_ADDR_LEN> addr;
   std::copy_n(report->peer_addr.addr, BLE_GAP_ADDR_LEN, addr.begin());
 
-  Log << "BleThermometer::globalScanCallback(";
-  logAddress(addr.data());
-  Log << ")\n";
-
-  std::unique_ptr<BLEScanner, void (*)(BLEScanner *)> resumer(
-      &Bluefruit.Scanner, [](BLEScanner *scanner) {
-        Log << "  Resuming scanner\n";
-        scanner->resume();
-      });
-
   trimDenyList();
   for (size_t i = 0; i < sDenyListCount; ++i) {
-    if (sDenyList[i].addr != addr) {
-      continue;
+    if (sDenyList[i].addr == addr) {
+      return;
     }
-    Log << "  Denied\n";
+  }
+
+  if (!Bluefruit.Scanner.checkReportForService(report,
+                                               sBleThermometer->service_)) {
     return;
   }
 
-  if (!sBleThermometer || !Bluefruit.Scanner.checkReportForService(
-                              report, sBleThermometer->service_)) {
-    return;
-  }
+  Log << "Found lid: ";
+  logAddress(addr.data());
+  Log << "\n";
 
-  if (sBleThermometer->service_.discovered()) {
-    Log << "  Already connected\n";
-    return;
-  }
-
-  resumer.release();
-  Log << "  Connecting to 0x"
-      << sBleThermometer->service_.uuid.toString().c_str() << "\n";
-  addDeniedClient(report->peer_addr.addr, 10 * 1000);
+  Bluefruit.Scanner.stop();
+  sBleThermometer->transitionTo(State::CONNECTING);
   Bluefruit.Central.connect(report);
 }
 
 void BleThermometer::globalConnectCallback(uint16_t conn_handle) {
+  Log << "BleThermometer::globalConnectCallback(" << conn_handle << ")\n";
+
+  if (!sBleThermometer || sBleThermometer->state_ != State::CONNECTING) {
+    Bluefruit.disconnect(conn_handle);
+    return;
+  }
 
   BLEConnection *conn = Bluefruit.Connection(conn_handle);
   if (!conn) {
-    Log << "Failed to get connection\n";
+    sBleThermometer->transitionTo(State::IDLE);
     return;
   }
 
   std::array<char, 32> name = {};
   conn->getPeerName(name.data(), name.size() - 1);
-  Log << "BleThermometer::globalConnectCallback(" << name.data() << ")\n";
-
-  std::unique_ptr<BLEConnection, void (*)(BLEConnection *)> disconnector(
-      conn, [](BLEConnection *connection) { connection->disconnect(); });
-
-  if (!sBleThermometer) {
-    return;
-  }
-
-  if (sBleThermometer->service_.discovered()) {
-    Log << "  Service already discovered\n";
-    return;
-  }
 
   if (!sBleThermometer->connectCallback(name.data())) {
     addDeniedClient(conn->getPeerAddr().addr, 10 * 60 * 1000);
-    Log << "  Refused to connect, added ";
-    logAddress(conn->getPeerAddr().addr);
-    Log << " to deny list\n";
+    Bluefruit.disconnect(conn_handle);
     return;
   }
 
-  disconnector.release();
-
-  delay(100); // Let the peripheral stack settle before pairing
-  Log << "  Requesting pairing...\n";
-  conn->requestPairing();
-}
-
-void BleThermometer::globalSecuredCallback(uint16_t conn_handle) {
-  Log << "BleThermometer::globalSecuredCallback(" << conn_handle << ")\n";
-
-  BLEConnection *conn = Bluefruit.Connection(conn_handle);
-  if (!conn || !sBleThermometer) {
-    return;
-  }
-
-  std::unique_ptr<BLEConnection, void (*)(BLEConnection *)> disconnector(
-      conn, [](BLEConnection *connection) { connection->disconnect(); });
-
-  if (!sBleThermometer->service_.discover(conn_handle)) {
-    Log << "  Service discovery failed\n";
-    return;
-  }
-
-  if (!sBleThermometer->char_.discover()) {
-    Log << "  Failed to discover characteristic\n";
-    return;
-  }
-
-  if (!sBleThermometer->char_.enableNotify()) {
-    Log << "  Failed to enable notifications\n";
-    return;
-  }
-
-  disconnector.release();
-  sBleThermometer->blue_blinker_.blink(Blinker::Signal::SOLID);
-  sBleThermometer->last_data_ms_ = millis();
-
-  conn->monitorRssi();
-  Log << "  Connected & Secured\n";
+  sBleThermometer->conn_handle_ = conn_handle;
+  sBleThermometer->transitionTo(State::CONNECTED);
 }
 
 void BleThermometer::globalDisconnectCallback(uint16_t conn_handle,
@@ -279,14 +317,14 @@ void BleThermometer::globalDisconnectCallback(uint16_t conn_handle,
   Log << "globalDisconnectCallback(/*handle=*/" << conn_handle
       << ", /*reason=*/" << reason << ")\n";
 
-  if (BLEConnection *conn = Bluefruit.Connection(conn_handle)) {
-    Log << "  Adding to deny list for 5s cooldown\n";
-    addDeniedClient(conn->getPeerAddr().addr, 5000);
+  if (!sBleThermometer || sBleThermometer->conn_handle_ != conn_handle) {
+    return;
   }
 
-  if (sBleThermometer) {
-    sBleThermometer->blue_blinker_.blink(Blinker::Signal::REPEAT);
+  if (BLEConnection *conn = Bluefruit.Connection(conn_handle)) {
+    addDeniedClient(conn->getPeerAddr().addr, 5000);
   }
+  sBleThermometer->transitionTo(State::IDLE);
 }
 
 void BleThermometer::globalNotifyCallback(

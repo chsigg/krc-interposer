@@ -18,8 +18,9 @@ void Beeper::beep(Signal signal) {
 
 void Beeper::update() {
 
-  static constexpr uint16_t kLowFreq = 800;
-  static constexpr uint16_t kHighFreq = 1200;
+  static constexpr uint16_t kFreq800Hz = 800;
+  static constexpr uint16_t kFreq1200Hz = 1200;
+  static constexpr uint16_t kFreq1600Hz = 1600;
   static constexpr uint16_t kToneDurationMs = 200;
   static constexpr uint16_t kSilentDurationMs = 1000;
 
@@ -29,14 +30,15 @@ void Beeper::update() {
     uint8_t next_step;
   } STATES[] = {
       {0, 0, kIdleStep},
-      {kToneDurationMs, kLowFreq, 5},
-      {kToneDurationMs, kHighFreq, 6},
-      {kToneDurationMs, kHighFreq, 1},
-      {kToneDurationMs, kLowFreq, 7},
-      {kToneDurationMs, kHighFreq, 0},
-      {kToneDurationMs, kLowFreq, 0},
-      {kToneDurationMs, 0, 8},
-      {kToneDurationMs, kLowFreq, 9},
+      {kToneDurationMs, kFreq800Hz, 5},
+      {kToneDurationMs, kFreq1200Hz, 6},
+      {kToneDurationMs, kFreq1200Hz, 7},
+      {kToneDurationMs, kFreq800Hz, 8},
+      {kToneDurationMs, kFreq1200Hz, 0},
+      {kToneDurationMs, kFreq800Hz, 0},
+      {kToneDurationMs, kFreq1600Hz, 0},
+      {kToneDurationMs, 0, 9},
+      {kToneDurationMs, kFreq800Hz, 10},
       {kSilentDurationMs, 0, 4},
   };
 

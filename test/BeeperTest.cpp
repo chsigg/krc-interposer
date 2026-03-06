@@ -6,8 +6,9 @@
 using namespace fakeit;
 
 namespace {
-constexpr uint16_t kLowFreq = 800;
-constexpr uint16_t kHighFreq = 1200;
+constexpr uint16_t kFreq800Hz = 800;
+constexpr uint16_t kFreq1200Hz = 1200;
+constexpr uint16_t kFreq1600Hz = 1600;
 constexpr uint16_t kToneDurationMs = 200;
 } // namespace
 
@@ -39,10 +40,10 @@ TEST_CASE("Beeper Logic") {
 
   SUBCASE("beep(POWER_ON) is LOW-HIGH") {
     beeper.beep(Beeper::Signal::POWER_ON);
-    Verify(Method(buzzer_mock, enable).Using(kLowFreq)).Once();
+    Verify(Method(buzzer_mock, enable).Using(kFreq800Hz)).Once();
 
     advance_time(kToneDurationMs);
-    Verify(Method(buzzer_mock, enable).Using(kHighFreq)).Once();
+    Verify(Method(buzzer_mock, enable).Using(kFreq1200Hz)).Once();
 
     advance_time(kToneDurationMs);
     Verify(Method(buzzer_mock, disable)).Once();
@@ -51,25 +52,22 @@ TEST_CASE("Beeper Logic") {
 
   SUBCASE("beep(POWER_OFF) is HIGH-LOW") {
     beeper.beep(Beeper::Signal::POWER_OFF);
-    Verify(Method(buzzer_mock, enable).Using(kHighFreq)).Once();
+    Verify(Method(buzzer_mock, enable).Using(kFreq1200Hz)).Once();
 
     advance_time(kToneDurationMs);
-    Verify(Method(buzzer_mock, enable).Using(kLowFreq)).Once();
+    Verify(Method(buzzer_mock, enable).Using(kFreq800Hz)).Once();
 
     advance_time(kToneDurationMs);
     Verify(Method(buzzer_mock, disable)).Once();
     CHECK(beeper.isIdle());
   }
 
-  SUBCASE("beep(CONNECTED) is HIGH-LOW-HIGH") {
+  SUBCASE("beep(CONNECTED) is HIGH-HIGHEST") {
     beeper.beep(Beeper::Signal::CONNECTED);
-    Verify(Method(buzzer_mock, enable).Using(kHighFreq)).Once();
+    Verify(Method(buzzer_mock, enable).Using(kFreq1200Hz)).Once();
 
     advance_time(kToneDurationMs);
-    Verify(Method(buzzer_mock, enable).Using(kLowFreq)).Once();
-
-    advance_time(kToneDurationMs);
-    Verify(Method(buzzer_mock, enable).Using(kHighFreq)).Twice();
+    Verify(Method(buzzer_mock, enable).Using(kFreq1600Hz)).Once();
 
     advance_time(kToneDurationMs);
     Verify(Method(buzzer_mock, disable)).Once();
@@ -80,16 +78,16 @@ TEST_CASE("Beeper Logic") {
     beeper.beep(Beeper::Signal::DISCONNECTED);
 
     // First pair
-    Verify(Method(buzzer_mock, enable).Using(kLowFreq)).Once();
+    Verify(Method(buzzer_mock, enable).Using(kFreq800Hz)).Once();
     advance_time(kToneDurationMs); // PAUSE start
     Verify(Method(buzzer_mock, disable)).Once();
     advance_time(kToneDurationMs); // Tone 2 start
-    Verify(Method(buzzer_mock, enable).Using(kLowFreq)).Twice();
+    Verify(Method(buzzer_mock, enable).Using(kFreq800Hz)).Twice();
     advance_time(kToneDurationMs); // SILENT start
     Verify(Method(buzzer_mock, disable)).Twice();
 
     advance_time(1000); // Back to start of loop
-    Verify(Method(buzzer_mock, enable).Using(kLowFreq)).Exactly(3);
+    Verify(Method(buzzer_mock, enable).Using(kFreq800Hz)).Exactly(3);
     CHECK_FALSE(beeper.isIdle());
   }
 }
