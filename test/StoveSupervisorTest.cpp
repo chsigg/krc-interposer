@@ -133,6 +133,7 @@ TEST_CASE("StoveSupervisor Logic") {
       When(Method(controller_mock, getPower)).AlwaysReturn(0.4f);
       When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(1001);
 
+      controller_mock.ClearInvocationHistory();
       supervisor.update();
 
       Verify(Method(controller_mock, setTargetTemp)).Once();

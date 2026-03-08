@@ -11,11 +11,10 @@
 
 class BleThermometer {
 
-  class IntermediateTemp final : public BLEClientCharacteristic {
+  class TemperatureCharacteristic : public BLEClientCharacteristic {
   public:
-    IntermediateTemp(BleThermometer *client)
-        : BLEClientCharacteristic(UUID16_CHR_INTERMEDIATE_TEMPERATURE),
-          client(client) {}
+    TemperatureCharacteristic(BleThermometer *client, uint16_t uuid)
+        : BLEClientCharacteristic(uuid), client(client) {}
     BleThermometer *client;
   };
 
@@ -55,8 +54,11 @@ private:
   Blinker blue_blinker_{blue_led_};
 
   BLEClientService service_ = {UUID16_SVC_HEALTH_THERMOMETER};
-  IntermediateTemp char_ = {this};
-  uint32_t last_rssi_read_ms_ = 0;
+  TemperatureCharacteristic char_intermediate_ = {
+      this, UUID16_CHR_INTERMEDIATE_TEMPERATURE};
+  TemperatureCharacteristic char_measurement_ = {
+      this, UUID16_CHR_TEMPERATURE_MEASUREMENT};
+
   uint32_t last_data_ms_ = std::numeric_limits<int32_t>::max();
 
   State state_ = State::IDLE;

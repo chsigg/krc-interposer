@@ -22,6 +22,14 @@ void StoveSupervisor::update() {
   dial_.update();
   beeper_.update();
 
+  if (float dial_target_temp =
+          lerp(stove_config_.min_temp_c, stove_config_.max_temp_c,
+               dial_.getPosition());
+      std::abs(dial_target_temp - dial_target_temp_) > 1.0f) {
+    controller_.setTargetTemp(dial_target_temp);
+    dial_target_temp_ = dial_target_temp;
+  }
+
   uint32_t now_ms = millis();
   if (!dial_.isOff()) {
     dial_off_start_ms_ = now_ms;
@@ -49,13 +57,6 @@ void StoveSupervisor::update() {
   case State::ACTIVE:
     if (!analyzer_.connected()) {
       return transitionTo(State::DISCONNECTED);
-    }
-    if (float dial_target_temp =
-            lerp(stove_config_.min_temp_c, stove_config_.max_temp_c,
-                 dial_.getPosition());
-        std::abs(dial_target_temp - dial_target_temp_) > 1.0f) {
-      controller_.setTargetTemp(dial_target_temp);
-      dial_target_temp_ = dial_target_temp;
     }
     controller_.update();
 
@@ -97,7 +98,6 @@ void StoveSupervisor::transitionTo(State new_state) {
     actuator_.setThrottle({0.0f, 0});
     break;
   case State::ACTIVE:
-    dial_target_temp_ = -1.0f;
     beeper_.beep(Beeper::Signal::NONE);
     break;
   case State::DISCONNECTED:

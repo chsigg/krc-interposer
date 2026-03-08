@@ -85,8 +85,10 @@ void BleThermometer::begin() {
   Bluefruit.Central.setDisconnectCallback(globalDisconnectCallback);
 
   service_.begin();
-  char_.setNotifyCallback(globalNotifyCallback);
-  char_.begin(&service_);
+  char_intermediate_.setNotifyCallback(globalNotifyCallback);
+  char_intermediate_.begin(&service_);
+  char_measurement_.setIndicateCallback(globalNotifyCallback);
+  char_measurement_.begin(&service_);
 
   Bluefruit.Scanner.setRxCallback(globalScanCallback);
   // Scan every 160*0.625ms=100ms for 40*0.624ms=25ms.
@@ -131,6 +133,10 @@ void BleThermometer::update() {
     if (elapsed_ms <= 500) {
       break;
     }
+    if (BLEConnection *conn = Bluefruit.Connection(conn_handle_)) {
+      // Request lid's preferred slow connection (440ms interval, 5s timeout)
+      conn->requestConnectionParameter(352, 0, 500);
+    }
     transitionTo(State::DISCOVERING_SERVICE);
     break;
 
@@ -149,7 +155,7 @@ void BleThermometer::update() {
       break;
     }
     Log << "Discovering characteristic...\n";
-    if (char_.discover()) {
+    if (char_intermediate_.discover() && char_measurement_.discover()) {
       transitionTo(State::ENABLING_NOTIFY);
     } else {
       Log << "Char discovery failed\n";
@@ -162,11 +168,8 @@ void BleThermometer::update() {
       break;
     }
     Log << "Enabling notifications...\n";
-    if (char_.enableNotify()) {
+    if (char_intermediate_.enableNotify()) {
       transitionTo(State::ONLINE);
-      if (BLEConnection *conn = Bluefruit.Connection(conn_handle_)) {
-        conn->monitorRssi();
-      }
     } else {
       Log << "Enable notify failed\n";
       transitionTo(State::IDLE);
@@ -174,12 +177,6 @@ void BleThermometer::update() {
     break;
 
   case State::ONLINE:
-    if (now_ms - last_rssi_read_ms_ > 10000) {
-      if (BLEConnection *conn = Bluefruit.Connection(conn_handle_)) {
-        Log << "RSSI: " << conn->getRssi() << "dBm\n";
-        last_rssi_read_ms_ = now_ms;
-      }
-    }
     break;
   }
 }
@@ -276,7 +273,8 @@ void BleThermometer::globalConnectCallback(uint16_t conn_handle) {
   Log << "BleThermometer::globalConnectCallback(" << conn_handle << ")\n";
 
   BLEConnection *conn = Bluefruit.Connection(conn_handle);
-  if (!sBleThermometer || sBleThermometer->state_ != State::CONNECTING || !conn) {
+  if (!sBleThermometer || sBleThermometer->state_ != State::CONNECTING ||
+      !conn) {
     Bluefruit.disconnect(conn_handle);
     return;
   }
@@ -321,6 +319,6 @@ void BleThermometer::globalDisconnectCallback(uint16_t conn_handle,
 
 void BleThermometer::globalNotifyCallback(
     BLEClientCharacteristic *characteristic, uint8_t *data, uint16_t len) {
-  static_cast<IntermediateTemp *>(characteristic)
+  static_cast<TemperatureCharacteristic *>(characteristic)
       ->client->notifyCallback(data, len);
 }
