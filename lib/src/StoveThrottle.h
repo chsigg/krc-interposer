@@ -6,11 +6,11 @@
 #include <initializer_list>
 
 // Maps analog pin reading to stove throttle
-struct ThrottleConfig {
-  float min = 0.05f;    // level min, level 0.0 below
-  float max = 0.8f;    // boost 0 below, level 1.0 at and above
-  float boost = 0.85f; // increments boost above
-  float boil = 0.95f;   // auto mode above
+struct ThrottleConfig { // measured values in parenthesis
+  float min = 0.05f;    // (0.050) level min, level 0.0 below
+  float max = 0.8f;     // (0.794) level 1.0, boost 0 below
+  float boost = 0.85f;  // (0.846) increments boost
+  float boil = 0.9f;    // (0.940) boil mode above
   uint32_t num_boosts = 2;
 };
 
