@@ -22,7 +22,6 @@ public:
   virtual ~TrendAnalyzer() = default;
 
   virtual void addReading(float value, uint32_t time_ms);
-  virtual void clear();
 
   virtual float getValue(uint32_t time) const {
     const auto &result = getAnalysisResult();

@@ -12,7 +12,6 @@ TEST_CASE("ThermalController") {
     config.p_factor = 0.1f;
     config.heat_loss_factor = 0.01f;
     config.system_lag_ms = 5000;
-    config.lid_open_threshold = 0.5f;
     config.ambient_temp = 20.0f;
 
     ThermalController controller(analyzer_mock.get(), config);
@@ -24,7 +23,6 @@ TEST_CASE("ThermalController") {
         When(Method(analyzer_mock, getValue)).AlwaysReturn(0.0f);
         CHECK(controller.getTargetTemp() == doctest::Approx(20.0f));
         CHECK(controller.getPower() == doctest::Approx(0.0f));
-        CHECK(controller.isLidOpen() == false);
     }
 
     SUBCASE("Target temperature updates") {
@@ -55,25 +53,5 @@ TEST_CASE("ThermalController") {
 
         controller.update();
         CHECK(controller.getPower() == doctest::Approx(0.7f));
-    }
-
-    SUBCASE("Lid open detection and recovery") {
-        controller.setTargetTemp(100.0f);
-
-        When(Method(analyzer_mock, getSlope)).AlwaysReturn(-1.0f);
-        When(Method(analyzer_mock, getValue)).AlwaysReturn(80.0f);
-
-        controller.update();
-        float power_before_lid = controller.getPower();
-        CHECK(controller.isLidOpen() == true);
-
-        When(Method(analyzer_mock, getSlope)).AlwaysReturn(-0.1f);
-        controller.update();
-        CHECK(controller.isLidOpen() == true);
-        CHECK(controller.getPower() == doctest::Approx(power_before_lid));
-
-        When(Method(analyzer_mock, getSlope)).AlwaysReturn(0.6f);
-        controller.update();
-        CHECK(controller.isLidOpen() == false);
     }
 }

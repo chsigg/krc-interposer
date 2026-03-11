@@ -63,7 +63,6 @@ TEST_CASE("StoveSupervisor Logic") {
   Fake(Method(controller_mock, setTargetTemp));
   Fake(Method(controller_mock, update));
   When(Method(controller_mock, getTargetTemp)).AlwaysReturn(0.0f);
-  When(Method(controller_mock, isLidOpen)).AlwaysReturn(false);
   When(Method(analyzer_mock, connected)).AlwaysReturn(false);
   When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(0);
   When(Method(analyzer_mock, getValue)).AlwaysReturn(0.0f);

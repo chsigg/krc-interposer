@@ -7,7 +7,6 @@ struct ThermalConfig {
   float p_factor = 0.1f;              // P-factor (1/K)
   float heat_loss_factor = 0.003f;    // Heat loss factor (1/K)
   uint32_t system_lag_ms = 10000;     // Lookahead time (ms)
-  float lid_open_threshold = 0.0005f; // Threshold for lid open (°C/ms)
   float ambient_temp = 20.0f;         // Ambient temperature (°C)
 };
 
@@ -21,7 +20,6 @@ public:
   virtual float getTargetTemp() const;
   virtual void setTargetTemp(float temp);
   virtual float getPower() const { return power_; }
-  virtual bool isLidOpen() const { return lid_open_; }
 
 private:
   const TrendAnalyzer &analyzer_;
@@ -30,5 +28,4 @@ private:
   std::atomic<float> target_temp_;
   float printed_target_temp_ = 0.0f;
   float power_ = 0.0f;
-  bool lid_open_ = false;
 };

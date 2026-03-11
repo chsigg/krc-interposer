@@ -23,20 +23,6 @@ void ThermalController::setTargetTemp(float temp) {
 
 void ThermalController::update() {
   uint32_t now_ms = millis();
-  float slope = analyzer_.getSlope();
-
-  if (slope < -config_.lid_open_threshold) {
-    lid_open_ = true;
-  }
-
-  if (lid_open_) {
-    // Until slope is positive, ignore sensor values and freeze output.
-    if (slope < config_.lid_open_threshold) {
-      return;
-    }
-    Log << "ThermalController lid closed\n";
-    lid_open_ = false;
-  }
 
   uint32_t future_time = now_ms + config_.system_lag_ms;
   float predicted_temp = analyzer_.getValue(future_time);

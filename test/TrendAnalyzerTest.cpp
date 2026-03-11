@@ -45,9 +45,9 @@ TEST_CASE("TrendAnalyzer Logic") {
   SUBCASE("Two readings - decreasing") {
     ta.addReading(20.0f, 1000);
     ta.addReading(10.0f, 2000);
-    // Slope = -0.01
-    CHECK(ta.getValue(2000) == doctest::Approx(10.0f));
-    CHECK(ta.getSlope() == doctest::Approx(-0.01f));
+    // New behavior: Peak-hold within window. Slope is 0, value is the peak.
+    CHECK(ta.getValue(2000) == doctest::Approx(20.0f));
+    CHECK(ta.getSlope() == doctest::Approx(0.0f));
   }
 
   SUBCASE("Three readings - perfect line") {
@@ -99,16 +99,5 @@ TEST_CASE("TrendAnalyzer Logic") {
     CHECK(ta.getValue(t2) == doctest::Approx(20.0f));
     // Slope = (20 - 10) / 2001 ~= 0.0049975
     CHECK(ta.getSlope() == doctest::Approx(0.0049975f).epsilon(0.001));
-  }
-
-  SUBCASE("Clear") {
-    ta.addReading(10.0f, 1000);
-    ta.addReading(20.0f, 2000);
-
-    ta.clear();
-
-    CHECK(ta.getLastUpdateMs() == 0);
-    CHECK(ta.getValue(2000) == 0.0f);
-    CHECK(ta.getSlope() == 0.0f);
   }
 }

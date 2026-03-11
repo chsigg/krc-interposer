@@ -36,14 +36,6 @@ void TrendAnalyzer::addReading(float value, uint32_t time_ms) {
   current_result_index_.store(next_idx, std::memory_order_release);
 }
 
-void TrendAnalyzer::clear() {
-  if (count_.exchange(0, std::memory_order_relaxed) == 0) {
-    return;
-  }
-  Log << "TrendAnalyzer::clear()\n";
-  results_[current_result_index_.load(std::memory_order_acquire)] = {};
-}
-
 TrendAnalyzer::AnalysisResult
 TrendAnalyzer::calculateRegression(size_t count) const {
   uint32_t last_update_ms = history_[0].time_ms;
@@ -57,13 +49,14 @@ TrendAnalyzer::calculateRegression(size_t count) const {
   float sum_xy = 0.0f;
   float sum_xx = 0.0f;
 
-  for (size_t i = 0; i < count; ++i) {
+  float max_y = 0.0f;
+  for (size_t i = count; 0 < i--;) {
     float x = static_cast<int32_t>(history_[i].time_ms - last_update_ms);
-    float y = history_[i].value;
+    max_y = std::max(max_y, history_[i].value);
 
     sum_x += x;
-    sum_y += y;
-    sum_xy += x * y;
+    sum_y += max_y;
+    sum_xy += x * max_y;
     sum_xx += x * x;
   }
 

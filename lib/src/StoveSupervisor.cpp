@@ -64,7 +64,7 @@ void StoveSupervisor::update() {
     // Disengage boost if we are < 10°C away and hand over to PID.
     is_temp_low_ = [&] {
       float delta_temp = controller_.getTargetTemp() - analyzer_.getValue(now_ms);
-      return !controller_.isLidOpen() && delta_temp >= (is_temp_low_ ? 10.0f : 20.0f);
+      return delta_temp >= (is_temp_low_ ? 10.0f : 20.0f);
     }();
 
     actuator_.setThrottle({is_temp_low_ ? 1.0f : controller_.getPower(),
