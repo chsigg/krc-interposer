@@ -7,8 +7,11 @@
 #include <limits>
 
 void TrendAnalyzer::addReading(float value, uint32_t time_ms) {
-  Log << "TrendAnalyzer::addReading(/*value=*/" << value << ", /*time_ms=*/"
-      << time_ms << ")\n";
+  if (time_ms - last_print_ms_ > 10*1000) {
+    Log << "TrendAnalyzer::addReading(/*value=*/" << value << ", /*time_ms=*/"
+        << time_ms << ")\n";
+    last_print_ms_ = time_ms;
+  }
 
   Reading reading = {value, time_ms};
   auto begin = history_.begin();

@@ -24,6 +24,9 @@ void StoveActuator::setThrottle(StoveThrottle throttle) {
 
 void StoveActuator::update() {
   float value = throttle_.position * config_.max;
+  if (value < config_.min) {
+    value = 0.0f;
+  }
 
   if (throttle_.boost == current_boost_) {
     pwm_pin_.write(value);

@@ -14,7 +14,7 @@ float ThermalController::getTargetTemp() const {
 }
 
 void ThermalController::setTargetTemp(float temp) {
-  if (std::abs(temp - printed_target_temp_) > 1.0f) {
+  if (std::abs(temp - printed_target_temp_) > 5.0f) {
     Log << "ThermalController::setTargetTemp(" << temp << ")\n";
     printed_target_temp_ = temp;
   }

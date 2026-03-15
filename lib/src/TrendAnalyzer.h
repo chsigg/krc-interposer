@@ -4,6 +4,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 
 // Thread-safe for one writer and multiple readers.
 class TrendAnalyzer {
@@ -54,4 +55,5 @@ private:
   std::array<AnalysisResult, 2> results_;
   std::atomic<int> current_result_index_{0};
   std::atomic<bool> connected_ = false;
+  uint32_t last_print_ms_ = std::numeric_limits<int32_t>::max();
 };

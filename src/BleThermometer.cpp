@@ -134,8 +134,8 @@ void BleThermometer::update() {
       break;
     }
     if (BLEConnection *conn = Bluefruit.Connection(conn_handle_)) {
-      // Request lid's preferred slow connection (440ms interval, 5s timeout)
-      conn->requestConnectionParameter(352, 0, 500);
+      // Request slow connection (440ms interval, 20s timeout).
+      conn->requestConnectionParameter(352, 0, 2000);
     }
     transitionTo(State::DISCOVERING_SERVICE);
     break;
@@ -144,6 +144,9 @@ void BleThermometer::update() {
     Log << "Discovering service...\n";
     if (service_.discover(conn_handle_)) {
       transitionTo(State::DISCOVERING_CHAR);
+    } else if (retry_count_ < 3) {
+      ++retry_count_;
+      Log << "Service discovery retry " << retry_count_ << "...\n";
     } else {
       Log << "Service discovery failed\n";
       transitionTo(State::IDLE);
@@ -157,6 +160,9 @@ void BleThermometer::update() {
     Log << "Discovering characteristic...\n";
     if (char_intermediate_.discover() && char_measurement_.discover()) {
       transitionTo(State::ENABLING_NOTIFY);
+    } else if (retry_count_ < 3) {
+      ++retry_count_;
+      Log << "Char discovery retry " << retry_count_ << "...\n";
     } else {
       Log << "Char discovery failed\n";
       transitionTo(State::IDLE);
@@ -170,6 +176,9 @@ void BleThermometer::update() {
     Log << "Enabling notifications...\n";
     if (char_intermediate_.enableNotify()) {
       transitionTo(State::ONLINE);
+    } else if (retry_count_ < 3) {
+      ++retry_count_;
+      Log << "Enable notify retry " << retry_count_ << "...\n";
     } else {
       Log << "Enable notify failed\n";
       transitionTo(State::IDLE);
@@ -177,6 +186,12 @@ void BleThermometer::update() {
     break;
 
   case State::ONLINE:
+    if (BLEConnection *conn = Bluefruit.Connection(conn_handle_)) {
+      if (now_ms - last_rssi_read_ms_ > 10 * 1000) {
+        Log << "RSSI: " << conn->getRssi() << "dBm\n";
+        last_rssi_read_ms_ = now_ms;
+      }
+    }
     break;
   }
 }
@@ -191,6 +206,7 @@ void BleThermometer::transitionTo(State new_state) {
 
   state_ = new_state;
   state_entry_ms_ = millis();
+  retry_count_ = 0;
 
   switch (state_) {
   case State::IDLE:
@@ -201,6 +217,9 @@ void BleThermometer::transitionTo(State new_state) {
     break;
   case State::ONLINE:
     blue_blinker_.blink(Blinker::Signal::SOLID);
+    if (BLEConnection *conn = Bluefruit.Connection(conn_handle_)) {
+      conn->monitorRssi();
+    }
     break;
   default:
     break;
@@ -233,8 +252,6 @@ void BleThermometer::notifyCallback(uint8_t *data, uint16_t len) {
   }
 
   float temp = decodeIEEE11073(data, len);
-  Log << "BleThermometer::notifyCallback(" << temp << "°C)\n";
-
   uint32_t now_ms = millis();
   last_data_ms_ = now_ms;
   analyzer_.addReading(temp, now_ms);

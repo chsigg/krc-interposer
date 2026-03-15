@@ -60,8 +60,10 @@ private:
       this, UUID16_CHR_TEMPERATURE_MEASUREMENT};
 
   uint32_t last_data_ms_ = std::numeric_limits<int32_t>::max();
+  uint32_t last_rssi_read_ms_ = std::numeric_limits<int32_t>::max();
 
   State state_ = State::IDLE;
   uint32_t state_entry_ms_ = 0;
   uint16_t conn_handle_ = BLE_CONN_HANDLE_INVALID;
+  uint32_t retry_count_ = 0;
 };
