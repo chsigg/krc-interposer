@@ -83,12 +83,13 @@ BleTelemetry telemetry(bleuart, controller, analyzer);
 // Supervisor
 StoveConfig stove_config;
 StoveSupervisor supervisor(dial, actuator, controller, beeper, analyzer,
-                           bypass_pin, stove_config,
-                           throttle_config, shutdown);
+                           bypass_pin, stove_config, throttle_config, shutdown);
 
 void setup() {
   bypass_pin.begin();
   bypass_pin.set(PinState::Low);
+  stove_pwm.begin();
+  stove_pwm.write(0.0f);
 
   for (int pin : {D5, D6, D7, D8, D9}) {
     pinMode(pin, INPUT_PULLDOWN);
@@ -98,7 +99,6 @@ void setup() {
   analogWriteResolution(ADC_RESOLUTION);
 
   dial_read_pin.begin();
-  stove_pwm.begin();
   red_led.begin();
   green_led.begin();
   green_led.set(PinState::Low);

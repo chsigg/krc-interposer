@@ -6,15 +6,17 @@
 
 extern "C" uint32_t millis();
 
-StoveSupervisor::StoveSupervisor(
-    StoveDial &dial, StoveActuator &actuator, ThermalController &controller,
-    Beeper &beeper, TrendAnalyzer &analyzer,
-    DigitalWritePin &bypass_pin, const StoveConfig &stove_config,
-    const ThrottleConfig &throttle_config, PowerOffCallback power_off_cb)
+StoveSupervisor::StoveSupervisor(StoveDial &dial, StoveActuator &actuator,
+                                 ThermalController &controller, Beeper &beeper,
+                                 TrendAnalyzer &analyzer,
+                                 DigitalWritePin &bypass_pin,
+                                 const StoveConfig &stove_config,
+                                 const ThrottleConfig &throttle_config,
+                                 PowerOffCallback power_off_cb)
     : dial_(dial), actuator_(actuator), controller_(controller),
-      beeper_(beeper), analyzer_(analyzer),
-      bypass_pin_(bypass_pin), stove_config_(stove_config),
-      throttle_config_(throttle_config), power_off_cb_(power_off_cb) {}
+      beeper_(beeper), analyzer_(analyzer), bypass_pin_(bypass_pin),
+      stove_config_(stove_config), throttle_config_(throttle_config),
+      power_off_cb_(power_off_cb) {}
 
 static float lerp(float a, float b, float t) { return a + t * (b - a); }
 
@@ -34,7 +36,7 @@ void StoveSupervisor::update() {
   if (!dial_.isOff()) {
     dial_off_start_ms_ = now_ms;
   }
-  if (now_ms - dial_off_start_ms_ > 5000 && power_off_cb_) {
+  if (now_ms - dial_off_start_ms_ > 10 * 1000 && power_off_cb_) {
     return power_off_cb_();
   }
 
@@ -58,12 +60,17 @@ void StoveSupervisor::update() {
     if (!analyzer_.connected()) {
       return transitionTo(State::DISCONNECTED);
     }
+    if (dial_.isOff()) {
+      actuator_.setThrottle({0.0f, 0});
+      break;
+    }
     controller_.update();
 
     // Engage boost if we are > 20°C away (approx 60s of heating).
     // Disengage boost if we are < 10°C away and hand over to PID.
     is_temp_low_ = [&] {
-      float delta_temp = controller_.getTargetTemp() - analyzer_.getValue(now_ms);
+      float delta_temp =
+          controller_.getTargetTemp() - analyzer_.getValue(now_ms);
       return delta_temp >= (is_temp_low_ ? 10.0f : 20.0f);
     }();
 

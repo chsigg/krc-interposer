@@ -123,7 +123,7 @@ void BleThermometer::update() {
     break;
 
   case State::CONNECTING:
-    if (elapsed_ms > 10000) {
+    if (elapsed_ms > 10 * 1000) {
       Log << "Connection timeout\n";
       transitionTo(State::IDLE);
     }
@@ -277,7 +277,7 @@ void BleThermometer::globalScanCallback(ble_gap_evt_adv_report_t *report) {
     return;
   }
 
-  Log << "Found lid: ";
+  Log << "Found thermometer: ";
   logAddress(addr.data());
   Log << "\n";
 

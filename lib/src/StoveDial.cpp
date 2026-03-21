@@ -14,7 +14,7 @@ void StoveDial::update() {
     position_ = std::max(0.0f, value_ / config_.max);
   }
 
-  if (std::fabs(value_ - printed_value_) < 0.02f) {
+  if (std::fabs(value_ - printed_value_) < 0.05f) {
     return;
   }
   Log << "StoveDial::update() value " << value_ << "\n";
