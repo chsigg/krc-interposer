@@ -36,7 +36,7 @@ void StoveSupervisor::update() {
   if (!dial_.isOff()) {
     dial_off_start_ms_ = now_ms;
   }
-  if (now_ms - dial_off_start_ms_ > 10 * 1000 && power_off_cb_) {
+  if (now_ms - dial_off_start_ms_ > 5 * 1000 && power_off_cb_) {
     return power_off_cb_();
   }
 

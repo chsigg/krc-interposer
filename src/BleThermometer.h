@@ -10,15 +10,9 @@
 #include "TrendAnalyzer.h"
 
 class BleThermometer {
-
-  class TemperatureCharacteristic : public BLEClientCharacteristic {
-  public:
-    TemperatureCharacteristic(BleThermometer *client, uint16_t uuid)
-        : BLEClientCharacteristic(uuid), client(client) {}
-    BleThermometer *client;
-  };
-
 public:
+  using Address = std::array<uint8_t, BLE_GAP_ADDR_LEN>;
+
   BleThermometer(TrendAnalyzer &analyzer);
   ~BleThermometer();
 
@@ -27,19 +21,9 @@ public:
   void update();
 
 private:
-  enum class State {
-    IDLE,
-    CONNECTING,
-    CONNECTED,
-    DISCOVERING_SERVICE,
-    DISCOVERING_CHAR,
-    ENABLING_NOTIFY,
-    ONLINE
-  };
-
-  void transitionTo(State new_state);
-  const char *getStateName(State state) const;
-
+  void scanCallback(ble_gap_evt_adv_report_t *report);
+  void connectCallback(uint16_t conn_handle);
+  void disconnectCallback();
   void notifyCallback(uint8_t *data, uint16_t len);
 
   static void globalScanCallback(ble_gap_evt_adv_report_t *report);
@@ -54,16 +38,14 @@ private:
   Blinker blue_blinker_{blue_led_};
 
   BLEClientService service_ = {UUID16_SVC_HEALTH_THERMOMETER};
-  TemperatureCharacteristic char_intermediate_ = {
-      this, UUID16_CHR_INTERMEDIATE_TEMPERATURE};
-  TemperatureCharacteristic char_measurement_ = {
-      this, UUID16_CHR_TEMPERATURE_MEASUREMENT};
+  BLEClientCharacteristic char_intermediate_ = {
+      UUID16_CHR_INTERMEDIATE_TEMPERATURE};
+  BLEClientCharacteristic char_measurement_ = {
+      UUID16_CHR_TEMPERATURE_MEASUREMENT};
+
+  std::array<Address, 8> allow_addresses_ = {};
+  size_t num_allow_addresses_ = 0;
 
   uint32_t last_data_ms_ = std::numeric_limits<int32_t>::max();
   uint32_t last_rssi_read_ms_ = std::numeric_limits<int32_t>::max();
-
-  State state_ = State::IDLE;
-  uint32_t state_entry_ms_ = 0;
-  uint16_t conn_handle_ = BLE_CONN_HANDLE_INVALID;
-  uint32_t retry_count_ = 0;
 };

@@ -24,12 +24,12 @@ TEST_CASE("StoveDial Logic") {
 
   SUBCASE("isOff Logic") {
     SUBCASE("Is off") {
-      set_reading(config.min - 0.01f);
+      set_reading(config.min * 0.49f);
       CHECK(dial.isOff());
     }
 
     SUBCASE("Is on") {
-      set_reading(config.min + 0.01f);
+      set_reading(config.min * 0.51f);
       CHECK_FALSE(dial.isOff());
     }
   }
