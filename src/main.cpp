@@ -51,9 +51,9 @@ static void poweroff();
 // --- Hardware Instantiation ---
 
 // Tee stream for logging to Serial and BLE
-BLEUart bleuart;
-ArduinoLogger logger(Serial, bleuart);
-Logger &Log = logger;
+BufferedLogger buffered_logger(1024);
+ArduinoLogger arduino_logger(buffered_logger);
+Logger &Log = arduino_logger;
 
 // Actuators
 ArduinoAnalogWritePin stove_pwm(kStovePwmPin);
@@ -78,7 +78,7 @@ ThermalController controller(analyzer, thermal_config);
 
 // BLE Modules
 BleThermometer thermometer(analyzer);
-BleTelemetry telemetry(bleuart, controller, analyzer);
+BleTelemetry telemetry(controller, analyzer, buffered_logger);
 
 // Supervisor
 StoveConfig stove_config;
@@ -105,6 +105,9 @@ void setup() {
 
   Serial.begin(115200);
 
+  Bluefruit.configPrphConn(BLE_GATT_ATT_MTU_MAX, BLE_GAP_EVENT_LENGTH_DEFAULT,
+                           BLE_GATTS_HVN_TX_QUEUE_SIZE_DEFAULT,
+                           BLE_GATTC_WRITE_CMD_TX_QUEUE_SIZE_DEFAULT);
   Bluefruit.begin(1, 1);
   Bluefruit.autoConnLed(false);
   Bluefruit.setTxPower(8);

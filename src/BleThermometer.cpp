@@ -13,17 +13,16 @@
 
 static BleThermometer *sBleThermometer = nullptr;
 
-static Logger &operator<<(Logger &logger,
-                          const BleThermometer::Address &address) {
-  for (auto it = address.rbegin();;) {
-    constexpr char kHex[] = "0123456789ABCDEF";
-    Log << std::array<char, 3>{kHex[*it >> 4], kHex[*it & 0x0F]}.data();
-    if (++it == address.rend()) {
-      break;
+static void logAddress(const uint8_t *addr) {
+  for (const uint8_t *it = addr + BLE_GAP_ADDR_LEN; it-- > addr;) {
+    char hex[3] = {};
+    hex[0] = "0123456789ABCDEF"[*it >> 4];
+    hex[1] = "0123456789ABCDEF"[*it & 0x0F];
+    Log << hex;
+    if (it != addr) {
+      Log << ":";
     }
-    Log << ":";
   }
-  return logger;
 }
 
 BleThermometer::BleThermometer(TrendAnalyzer &analyzer) : analyzer_(analyzer) {
@@ -40,18 +39,41 @@ BleThermometer::~BleThermometer() {
 void BleThermometer::begin() {
   Log << "BleThermometer::begin()\n";
 
-  Bluefruit.Central.setConnectCallback(globalConnectCallback);
-  Bluefruit.Central.setDisconnectCallback(globalDisconnectCallback);
+  Bluefruit.Central.setConnectCallback([](uint16_t conn_handle) {
+    if (sBleThermometer) {
+      sBleThermometer->connectCallback(conn_handle);
+    }
+  });
+
+  Bluefruit.Central.setDisconnectCallback([](uint16_t conn_handle,
+                                             uint8_t reason) {
+    if (sBleThermometer) {
+      sBleThermometer->disconnectCallback();
+    }
+  });
 
   service_.begin();
-  char_intermediate_.setNotifyCallback(globalNotifyCallback);
+
+  auto notify_cb = [](BLEClientCharacteristic *, uint8_t *data, uint16_t len) {
+    if (sBleThermometer) {
+      sBleThermometer->notifyCallback(data, len);
+    }
+  };
+
+  char_intermediate_.setNotifyCallback(notify_cb);
   char_intermediate_.begin(&service_);
-  char_measurement_.setIndicateCallback(globalNotifyCallback);
+
+  char_measurement_.setIndicateCallback(notify_cb);
   char_measurement_.begin(&service_);
 
-  Bluefruit.Scanner.setRxCallback(globalScanCallback);
-  // 288*0.625ms=180ms scan window every 320*0.625ms=200ms (90% duty cycle).
-  Bluefruit.Scanner.setInterval(320, 288);
+  Bluefruit.Scanner.setRxCallback([](ble_gap_evt_adv_report_t *report) {
+    if (sBleThermometer) {
+      sBleThermometer->scanCallback(report);
+    }
+  });
+
+  // Scan continuously (100% duty cycle): 160*0.625ms = 100ms
+  Bluefruit.Scanner.setInterval(160, 160);
   Bluefruit.Scanner.useActiveScan(true);
   Bluefruit.Scanner.restartOnDisconnect(true);
   Bluefruit.Scanner.start(0);
@@ -91,6 +113,7 @@ void BleThermometer::scanCallback(ble_gap_evt_adv_report_t *report) {
   auto begin = allow_addresses_.begin();
   auto end = begin + num_allow_addresses_;
   auto it = std::find(begin, end, address);
+
   if (it == end) {
     if (!Bluefruit.Scanner.checkReportForService(report, service_)) {
       return;
@@ -102,7 +125,6 @@ void BleThermometer::scanCallback(ble_gap_evt_adv_report_t *report) {
       ++num_allow_addresses_;
     }
     *end = address;
-    Log << "Added " << address << " to allow-list\n";
   }
 
   std::array<char, 32> name = {};
@@ -110,7 +132,6 @@ void BleThermometer::scanCallback(ble_gap_evt_adv_report_t *report) {
           report, BLE_GAP_AD_TYPE_COMPLETE_LOCAL_NAME,
           reinterpret_cast<uint8_t *>(name.data()), name.size() - 1) ||
       strlen(name.data()) == 0) {
-    Log << "No name in advertising report\n";
     return;
   }
 
@@ -123,7 +144,10 @@ void BleThermometer::scanCallback(ble_gap_evt_adv_report_t *report) {
     return;
   }
 
-  Log << "Found " << name.data() << " at " << address << "\n";
+  Log << "Found " << name.data() << " at ";
+  logAddress(address.data());
+  Log << "\n";
+
   resumer.release();
   Bluefruit.Central.connect(report);
 }
@@ -188,35 +212,4 @@ void BleThermometer::notifyCallback(uint8_t *data, uint16_t len) {
   float temp = decodeIEEE11073(data, len);
   last_data_ms_ = millis();
   analyzer_.addReading(temp, last_data_ms_);
-}
-
-void BleThermometer::globalScanCallback(ble_gap_evt_adv_report_t *report) {
-  if (sBleThermometer) {
-    sBleThermometer->scanCallback(report);
-  }
-}
-
-void BleThermometer::globalConnectCallback(uint16_t conn_handle) {
-  Log << "BleThermometer::globalConnectCallback(" << conn_handle << ")\n";
-
-  if (sBleThermometer) {
-    sBleThermometer->connectCallback(conn_handle);
-  }
-}
-
-void BleThermometer::globalDisconnectCallback(uint16_t conn_handle,
-                                              uint8_t reason) {
-  Log << "globalDisconnectCallback(/*handle=*/" << conn_handle
-      << ", /*reason=*/" << reason << ")\n";
-
-  if (sBleThermometer) {
-    sBleThermometer->disconnectCallback();
-  }
-}
-
-void BleThermometer::globalNotifyCallback(
-    BLEClientCharacteristic *characteristic, uint8_t *data, uint16_t len) {
-  if (sBleThermometer) {
-    sBleThermometer->notifyCallback(data, len);
-  }
 }
