@@ -64,7 +64,6 @@ TEST_CASE("StoveSupervisor Logic") {
   Fake(Method(controller_mock, update));
   When(Method(controller_mock, getTargetTemp)).AlwaysReturn(0.0f);
   When(Method(analyzer_mock, connected)).AlwaysReturn(false);
-  When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(0);
   When(Method(analyzer_mock, getValue)).AlwaysReturn(0.0f);
   Fake(Method(bypass_mock, set));
 
@@ -130,7 +129,6 @@ TEST_CASE("StoveSupervisor Logic") {
     SUBCASE("PID Control Loop") {
       When(Method(dial_mock, getPosition)).AlwaysReturn(0.5f);
       When(Method(controller_mock, getPower)).AlwaysReturn(0.4f);
-      When(Method(analyzer_mock, getLastUpdateMs)).AlwaysReturn(1001);
 
       controller_mock.ClearInvocationHistory();
       supervisor.update();

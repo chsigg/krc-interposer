@@ -31,10 +31,6 @@ public:
 
   virtual float getSlope() const { return getAnalysisResult().slope; }
 
-  virtual uint32_t getLastUpdateMs() const {
-    return getAnalysisResult().last_update_ms;
-  }
-
   virtual bool connected() const {
     return connected_.load(std::memory_order_relaxed);
   }

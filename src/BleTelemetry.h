@@ -5,6 +5,7 @@
 #include "ThermalController.h"
 #include "TrendAnalyzer.h"
 #include <bluefruit.h>
+#include <limits>
 
 class BleTelemetry final {
 
@@ -30,7 +31,7 @@ private:
   BLEService log_service_ = BLEService("EF680001-9B35-4933-9B10-592919114064");
   BLECharacteristic log_char_ = BLECharacteristic("EF680002-9B35-4933-9B10-592919114064");
 
-  uint32_t last_update_ = std::numeric_limits<int32_t>::max();
+  uint32_t last_update_ms_ = std::numeric_limits<int32_t>::max();
 };
 
 #endif // BLETELEMETRY_H_

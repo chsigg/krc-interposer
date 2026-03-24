@@ -27,7 +27,7 @@ void StoveSupervisor::update() {
   if (float dial_target_temp =
           lerp(stove_config_.min_temp_c, stove_config_.max_temp_c,
                dial_.getPosition());
-      std::abs(dial_target_temp - dial_target_temp_) > 1.0f) {
+      std::fabs(dial_target_temp - dial_target_temp_) > 1.0f) {
     controller_.setTargetTemp(dial_target_temp);
     dial_target_temp_ = dial_target_temp;
   }

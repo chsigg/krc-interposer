@@ -12,14 +12,7 @@ BleTelemetry::BleTelemetry(ThermalController &thermal_controller,
 
 void BleTelemetry::begin() {
   Bluefruit.Periph.setConnectCallback([](uint16_t conn_handle) {
-    BLEConnection *conn = Bluefruit.Connection(conn_handle);
-    if (!conn) {
-      Log << "Failed to get connection\n";
-      return;
-    }
-    std::array<char, 32> name = {};
-    conn->getPeerName(name.data(), name.size() - 1);
-    Log << "BleTelemetry::connectCallback(" << name.data() << ")\n";
+    Log << "BleTelemetry::connectCallback(/*handle=*/" << conn_handle << ")\n";
   });
 
   Bluefruit.Periph.setDisconnectCallback(
@@ -77,17 +70,18 @@ void BleTelemetry::update() {
     return;
   }
 
-  if (millis() - last_update_ < 1000) {
+  uint32_t now_ms = millis();
+  if (now_ms - last_update_ms_ < 1000) {
     return;
   }
-  last_update_ = millis();
+  last_update_ms_ = now_ms;
 
   auto controller_temp = encodeIEEE11073(thermal_controller_.getTargetTemp());
   target_temp_.notify(controller_temp.data(), controller_temp.size());
 
   float current_temp = std::numeric_limits<float>::quiet_NaN();
-  if (trend_analyzer_.connected() && trend_analyzer_.getLastUpdateMs() != 0) {
-    current_temp = trend_analyzer_.getValue(millis());
+  if (trend_analyzer_.connected()) {
+    current_temp = trend_analyzer_.getValue(now_ms);
   }
 
   auto encoded_temp = encodeIEEE11073(current_temp);
@@ -98,30 +92,23 @@ void BleTelemetry::logTask() {
   uint8_t buffer[BLE_GATT_ATT_MTU_MAX];
 
   while (true) {
-    if (!Bluefruit.connected() || log_char_.indicateEnabled() == false) {
+    size_t available = buffered_logger_.available();
+    if (available == 0 || !Bluefruit.connected() ||
+        !log_char_.indicateEnabled()) {
       vTaskDelay(pdMS_TO_TICKS(100));
       continue;
     }
 
-    size_t available = buffered_logger_.available();
-    if (available == 0) {
-      vTaskDelay(pdMS_TO_TICKS(10));
-      continue;
-    }
-
-    // Determine chunk size based on current MTU
     static constexpr size_t kGattHeaderBytes = 3;
     uint16_t mtu = Bluefruit.getMaxMtu(BLE_GAP_ROLE_PERIPH);
     size_t chunk_size = std::min(available, mtu - kGattHeaderBytes);
 
     size_t peeked = buffered_logger_.peek(buffer, chunk_size);
-
-    // indicate() blocks until ACK is received from client
-    if (log_char_.indicate(buffer, peeked)) {
-      buffered_logger_.consume(peeked);
-    } else {
-      // Failed to send or no ACK, wait a bit before retry
-      vTaskDelay(pdMS_TO_TICKS(50));
+    if (!log_char_.indicate(buffer, peeked)) {
+      vTaskDelay(pdMS_TO_TICKS(100));
+      continue;
     }
+
+    buffered_logger_.consume(peeked);
   }
 }
