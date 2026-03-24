@@ -14,6 +14,7 @@
 #include "StoveDial.h"
 #include "StoveSupervisor.h"
 #include "ThermalController.h"
+#include "TimestampLogger.h"
 #include "TrendAnalyzer.h"
 
 void delayUs(uint32_t us) { delayMicroseconds(us); }
@@ -53,7 +54,8 @@ static void poweroff();
 // Tee stream for logging to Serial and BLE
 BufferedLogger buffered_logger(1024);
 ArduinoLogger arduino_logger(buffered_logger);
-Logger &Log = arduino_logger;
+TimestampLogger timestamp_logger(arduino_logger);
+Logger &Log = timestamp_logger;
 
 // Actuators
 ArduinoAnalogWritePin stove_pwm(kStovePwmPin);
