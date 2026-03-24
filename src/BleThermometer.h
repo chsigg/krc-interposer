@@ -23,7 +23,7 @@ public:
 private:
   void scanCallback(ble_gap_evt_adv_report_t *report);
   void connectCallback(uint16_t conn_handle);
-  void disconnectCallback();
+  void disconnectCallback(uint16_t conn_handle, uint8_t reason);
   void notifyCallback(uint8_t *data, uint16_t len);
 
   TrendAnalyzer &analyzer_;

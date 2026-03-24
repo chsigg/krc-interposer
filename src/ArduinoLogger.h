@@ -7,7 +7,6 @@
 // This class tees output to Serial and another Logger.
 class ArduinoLogger final : public Logger {
 public:
-  // Constructor takes our ring buffer (BufferedLogger).
   explicit ArduinoLogger(Logger &logger) : logger_(logger) {}
 
   void log(const char* msg, size_t length) override {

@@ -13,16 +13,18 @@
 
 static BleThermometer *sBleThermometer = nullptr;
 
-static void logAddress(const uint8_t *addr) {
-  for (const uint8_t *it = addr + BLE_GAP_ADDR_LEN; it-- > addr;) {
-    char hex[3] = {};
-    hex[0] = "0123456789ABCDEF"[*it >> 4];
-    hex[1] = "0123456789ABCDEF"[*it & 0x0F];
-    Log << hex;
-    if (it != addr) {
-      Log << ":";
+inline Logger &
+operator<<(Logger &logger,
+           const std::array<uint8_t, BLE_GAP_ADDR_LEN> &address) {
+  constexpr char kHex[] = "0123456789ABCDEF";
+  for (auto it = address.rbegin();;) {
+    logger << std::array<char, 3>{kHex[*it >> 4], kHex[*it & 0x0F], '\0'}.data();
+    if (++it == address.rend()) {
+      break;
     }
+    logger << ":";
   }
+  return logger;
 }
 
 BleThermometer::BleThermometer(TrendAnalyzer &analyzer) : analyzer_(analyzer) {
@@ -45,12 +47,12 @@ void BleThermometer::begin() {
     }
   });
 
-  Bluefruit.Central.setDisconnectCallback([](uint16_t conn_handle,
-                                             uint8_t reason) {
-    if (sBleThermometer) {
-      sBleThermometer->disconnectCallback();
-    }
-  });
+  Bluefruit.Central.setDisconnectCallback(
+      [](uint16_t conn_handle, uint8_t reason) {
+        if (sBleThermometer) {
+          sBleThermometer->disconnectCallback(conn_handle, reason);
+        }
+      });
 
   service_.begin();
 
@@ -125,6 +127,7 @@ void BleThermometer::scanCallback(ble_gap_evt_adv_report_t *report) {
       ++num_allow_addresses_;
     }
     *end = address;
+    Log << "Added " << address << " to allow-list\n";
   }
 
   std::array<char, 32> name = {};
@@ -132,6 +135,7 @@ void BleThermometer::scanCallback(ble_gap_evt_adv_report_t *report) {
           report, BLE_GAP_AD_TYPE_COMPLETE_LOCAL_NAME,
           reinterpret_cast<uint8_t *>(name.data()), name.size() - 1) ||
       strlen(name.data()) == 0) {
+    Log << "No name in advertising report\n";
     return;
   }
 
@@ -144,10 +148,7 @@ void BleThermometer::scanCallback(ble_gap_evt_adv_report_t *report) {
     return;
   }
 
-  Log << "Found " << name.data() << " at ";
-  logAddress(address.data());
-  Log << "\n";
-
+  Log << "Found " << name.data() << " at " << address << "\n";
   resumer.release();
   Bluefruit.Central.connect(report);
 }
@@ -164,16 +165,6 @@ void BleThermometer::connectCallback(uint16_t conn_handle) {
 
   std::unique_ptr<BLEConnection, void (*)(BLEConnection *)> disconnector(
       conn, [](BLEConnection *conn) { conn->disconnect(); });
-
-  // Request slow connection (440ms interval, 20s timeout)
-  if (!conn->requestConnectionParameter(352, 0, 2000)) {
-    Log << "Failed to request connection parameters\n";
-    return;
-  }
-
-  if (!conn->monitorRssi()) {
-    Log << "Enable RSSI monitor failed\n";
-  }
 
   if (!service_.discover(conn_handle)) {
     Log << "Service discovery failed\n";
@@ -195,12 +186,26 @@ void BleThermometer::connectCallback(uint16_t conn_handle) {
     return;
   }
 
+  // Request slow connection (440ms interval, 20s timeout)
+  if (!conn->requestConnectionParameter(352, 0, 2000)) {
+    Log << "Failed to request connection parameters\n";
+    return;
+  }
+
+  if (!conn->monitorRssi()) {
+    Log << "Enable RSSI monitor failed\n";
+    return;
+  }
+
   disconnector.release();
   blue_blinker_.blink(Blinker::Signal::SOLID);
   Log << "Connected and Online\n";
 }
 
-void BleThermometer::disconnectCallback() {
+void BleThermometer::disconnectCallback(uint16_t conn_handle, uint8_t reason) {
+  Log << "BleThermometer::disconnectCallback(" << conn_handle << ", " << reason
+      << ")\n";
+
   blue_blinker_.blink(Blinker::Signal::REPEAT);
 }
 
