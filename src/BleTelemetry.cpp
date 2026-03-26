@@ -71,21 +71,26 @@ void BleTelemetry::update() {
   }
 
   uint32_t now_ms = millis();
-  if (now_ms - last_update_ms_ < 1000) {
-    return;
-  }
-  last_update_ms_ = now_ms;
 
-  auto controller_temp = encodeIEEE11073(thermal_controller_.getTargetTemp());
-  target_temp_.notify(controller_temp.data(), controller_temp.size());
-
+  float target_temp = thermal_controller_.getTargetTemp();
   float current_temp = std::numeric_limits<float>::quiet_NaN();
   if (trend_analyzer_.connected()) {
     current_temp = trend_analyzer_.getValue(now_ms);
   }
+  bool has_changed = std::fabs(last_target_temp_ - target_temp) > 1.0f ||
+                     std::fabs(last_current_temp_ - current_temp) > 1.0f;
 
-  auto encoded_temp = encodeIEEE11073(current_temp);
-  current_temp_.notify(encoded_temp.data(), encoded_temp.size());
+  if (now_ms - last_update_ms_ < (has_changed ? 100 : 1000)) {
+    return;
+  }
+  last_update_ms_ = now_ms;
+  last_target_temp_ = target_temp;
+  last_current_temp_ = current_temp;
+
+  auto target_temp_enc = encodeIEEE11073(target_temp);
+  target_temp_.notify(target_temp_enc.data(), target_temp_enc.size());
+  auto current_temp_enc = encodeIEEE11073(current_temp);
+  current_temp_.notify(current_temp_enc.data(), current_temp_enc.size());
 }
 
 void BleTelemetry::logTask() {
@@ -93,15 +98,14 @@ void BleTelemetry::logTask() {
 
   while (true) {
     size_t available = buffered_logger_.available();
-    if (available == 0 || !Bluefruit.connected() ||
-        !log_char_.indicateEnabled()) {
+    BLEConnection *conn = Bluefruit.Connection(Bluefruit.connHandle());
+    if (available == 0 || conn == nullptr || !log_char_.indicateEnabled()) {
       vTaskDelay(pdMS_TO_TICKS(100));
       continue;
     }
 
     static constexpr size_t kGattHeaderBytes = 3;
-    uint16_t mtu = Bluefruit.getMaxMtu(BLE_GAP_ROLE_PERIPH);
-    size_t chunk_size = std::min(available, mtu - kGattHeaderBytes);
+    size_t chunk_size = std::min(available, conn->getMtu() - kGattHeaderBytes);
 
     size_t peeked = buffered_logger_.peek(buffer, chunk_size);
     if (!log_char_.indicate(buffer, peeked)) {

@@ -32,6 +32,8 @@ private:
   BLECharacteristic log_char_ = BLECharacteristic("EF680002-9B35-4933-9B10-592919114064");
 
   uint32_t last_update_ms_ = std::numeric_limits<int32_t>::max();
+  float last_target_temp_ = 0.0f;
+  float last_current_temp_ = 0.0f;
 };
 
 #endif // BLETELEMETRY_H_
