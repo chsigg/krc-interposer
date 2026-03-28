@@ -90,8 +90,6 @@ StoveSupervisor supervisor(dial, actuator, controller, beeper, analyzer,
 void setup() {
   bypass_pin.begin();
   bypass_pin.set(PinState::Low);
-  stove_pwm.begin();
-  actuator.setMinThrottle();
 
   for (int pin : {D5, D6, D7, D8, D9}) {
     pinMode(pin, INPUT_PULLDOWN);
@@ -100,6 +98,7 @@ void setup() {
   analogReadResolution(ADC_RESOLUTION);
   analogWriteResolution(ADC_RESOLUTION);
 
+  stove_pwm.begin();
   dial_read_pin.begin();
   red_led.begin();
   green_led.begin();

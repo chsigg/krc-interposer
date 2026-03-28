@@ -86,10 +86,10 @@ TEST_CASE("StoveSupervisor Logic") {
       Verify(Method(beeper_mock, beep).Using(Beeper::Signal::CONNECTED)).Once();
       
       supervisor.update(); // first run of CONNECTED state
-      // First update at t=0 should ramp starting at 0.5f
+      // First update at t=0 should ramp starting at 1.0f
       Verify(Method(actuator_mock, setThrottle)
                  .Matching([&](const StoveThrottle &t) {
-                   return isNear(t, StoveThrottle{0.5f, 0});
+                   return isNear(t, StoveThrottle{1.0f, 0});
                  }))
           .Once();
     }
@@ -106,7 +106,7 @@ TEST_CASE("StoveSupervisor Logic") {
       supervisor.update();
       Verify(Method(actuator_mock, setThrottle)
                  .Matching([&](const StoveThrottle &t) {
-                   return isNear(t, StoveThrottle{0.30f, 0});
+                   return isNear(t, StoveThrottle{0.575f, 0});
                  }))
           .Once();
     }

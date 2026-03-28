@@ -23,6 +23,7 @@ static float lerp(float a, float b, float t) { return a + t * (b - a); }
 void StoveSupervisor::update() {
   dial_.update();
   beeper_.update();
+  actuator_.update();
 
   if (float dial_target_temp =
           lerp(stove_config_.min_temp_c, stove_config_.max_temp_c,
@@ -44,6 +45,7 @@ void StoveSupervisor::update() {
 
   switch (state_) {
   case State::SCANNING:
+    actuator_.setThrottle({dial_.getPosition(), 0});
     if (analyzer_.connected()) {
       return transitionTo(State::CONNECTED);
     }

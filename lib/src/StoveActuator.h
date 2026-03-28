@@ -4,6 +4,7 @@
 #include "DigitalWritePin.h"
 #include "StoveThrottle.h"
 #include <cstdint>
+#include <limits>
 
 class StoveActuator {
 public:
@@ -15,6 +16,9 @@ public:
   virtual void update();
 
 private:
+  void updateTargetPwm(uint32_t now_ms);
+  void writeSlewedPwm(uint32_t now_ms);
+
   AnalogWritePin &pwm_pin_;
   const ThrottleConfig config_;
 
@@ -23,4 +27,8 @@ private:
   uint32_t last_boost_change_ms_ = 0;
   StoveThrottle throttle_ = {};
   StoveThrottle printed_throttle_ = {};
+
+  float target_pwm_ = 0.0f;
+  float current_pwm_ = 0.0f;
+  uint32_t last_update_ms_ = std::numeric_limits<int32_t>::max();
 };

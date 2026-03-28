@@ -18,7 +18,8 @@ operator<<(Logger &logger,
            const std::array<uint8_t, BLE_GAP_ADDR_LEN> &address) {
   constexpr char kHex[] = "0123456789ABCDEF";
   for (auto it = address.rbegin();;) {
-    logger << std::array<char, 3>{kHex[*it >> 4], kHex[*it & 0x0F], '\0'}.data();
+    std::array<char, 3> hex = {kHex[*it >> 4], kHex[*it & 0x0F]};
+    logger << hex.data();
     if (++it == address.rend()) {
       break;
     }
@@ -56,16 +57,13 @@ void BleThermometer::begin() {
 
   service_.begin();
 
-  auto notify_cb = [](BLEClientCharacteristic *, uint8_t *data, uint16_t len) {
-    if (sBleThermometer) {
-      sBleThermometer->notifyCallback(data, len);
-    }
-  };
-
-  char_intermediate_.setNotifyCallback(notify_cb);
+  char_intermediate_.setNotifyCallback(
+      [](BLEClientCharacteristic *, uint8_t *data, uint16_t len) {
+        if (sBleThermometer) {
+          sBleThermometer->notifyCallback(data, len);
+        }
+      });
   char_intermediate_.begin(&service_);
-
-  char_measurement_.setIndicateCallback(notify_cb);
   char_measurement_.begin(&service_);
 
   Bluefruit.Scanner.setRxCallback([](ble_gap_evt_adv_report_t *report) {
