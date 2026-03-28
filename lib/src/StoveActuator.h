@@ -11,6 +11,7 @@ public:
   virtual ~StoveActuator() = default;
 
   virtual void setThrottle(StoveThrottle throttle);
+  virtual void setMinThrottle();
   virtual void update();
 
 private:

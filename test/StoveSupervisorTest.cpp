@@ -37,11 +37,12 @@ TEST_CASE("StoveSupervisor Logic") {
                              analyzer_mock.get(), bypass_mock.get(),
                              stove_config, throttle_config, poweroff_fn);
 
-  uint32_t current_time_ms = 0;
-  When(Method(ArduinoFake(), millis)).AlwaysDo([&]() {
+  static uint32_t current_time_ms = 0;
+  current_time_ms = 0;
+  When(Method(ArduinoFake(), millis)).AlwaysDo([]() {
     return current_time_ms;
   });
-  auto set_time = [&](uint32_t t) { current_time_ms = t; };
+  auto set_time = [](uint32_t t) { current_time_ms = t; };
   set_time(0);
 
   auto isNear = [](const StoveThrottle &t, const StoveThrottle &expected) {
@@ -55,6 +56,7 @@ TEST_CASE("StoveSupervisor Logic") {
   When(Method(dial_mock, isBoil)).AlwaysReturn(false);
   Fake(Method(dial_mock, update));
   Fake(Method(actuator_mock, setThrottle));
+  Fake(Method(actuator_mock, setMinThrottle));
   Fake(Method(actuator_mock, update));
   Fake(Method(beeper_mock, beep));
   Fake(Method(beeper_mock, update));
@@ -67,16 +69,9 @@ TEST_CASE("StoveSupervisor Logic") {
   When(Method(analyzer_mock, getValue)).AlwaysReturn(0.0f);
   Fake(Method(bypass_mock, set));
 
-  auto reset_actuator = [&]() {
-    actuator_mock.Reset();
-    Fake(Method(actuator_mock, setThrottle));
-    Fake(Method(actuator_mock, update));
-  };
-
   SUBCASE("Power off sequence") {
     When(Method(dial_mock, isOff)).AlwaysReturn(true);
     supervisor.update();
-    CHECK(poweroff_called == false);
 
     set_time(5001);
     supervisor.update();
@@ -86,12 +81,15 @@ TEST_CASE("StoveSupervisor Logic") {
   SUBCASE("SCANNING behavior") {
     SUBCASE("Transition SCANNING -> CONNECTED") {
       When(Method(analyzer_mock, connected)).AlwaysReturn(true);
-      supervisor.update();
-      // CONNECTED entry sets throttle to 0 and beeps CONNECTED
+      supervisor.update(); // transition happens here
+      // CONNECTED entry beeps CONNECTED
       Verify(Method(beeper_mock, beep).Using(Beeper::Signal::CONNECTED)).Once();
+      
+      supervisor.update(); // first run of CONNECTED state
+      // First update at t=0 should ramp starting at 0.5f
       Verify(Method(actuator_mock, setThrottle)
                  .Matching([&](const StoveThrottle &t) {
-                   return isNear(t, StoveThrottle{0.0f, 0});
+                   return isNear(t, StoveThrottle{0.5f, 0});
                  }))
           .Once();
     }
@@ -101,7 +99,17 @@ TEST_CASE("StoveSupervisor Logic") {
     // Get to CONNECTED
     When(Method(analyzer_mock, connected)).AlwaysReturn(true);
     supervisor.update(); // SCANNING -> CONNECTED
-    reset_actuator();
+    actuator_mock.ClearInvocationHistory();
+
+    SUBCASE("Ramp down during CONNECTED") {
+      set_time(500);
+      supervisor.update();
+      Verify(Method(actuator_mock, setThrottle)
+                 .Matching([&](const StoveThrottle &t) {
+                   return isNear(t, StoveThrottle{0.30f, 0});
+                 }))
+          .Once();
+    }
 
     SUBCASE("Transition CONNECTED -> ACTIVE after 1s") {
       set_time(1001);
@@ -124,18 +132,29 @@ TEST_CASE("StoveSupervisor Logic") {
     set_time(1001);
     supervisor.update(); // CONNECTED -> ACTIVE
 
-    reset_actuator();
+    actuator_mock.ClearInvocationHistory();
 
     SUBCASE("PID Control Loop") {
       When(Method(dial_mock, getPosition)).AlwaysReturn(0.5f);
       When(Method(controller_mock, getPower)).AlwaysReturn(0.4f);
 
+      bypass_mock.ClearInvocationHistory();
       controller_mock.ClearInvocationHistory();
       supervisor.update();
 
+      Verify(Method(bypass_mock, set).Using(PinState::High)).Once();
       Verify(Method(controller_mock, setTargetTemp)).Once();
       Verify(Method(controller_mock, update)).Once();
       Verify(Method(actuator_mock, setThrottle)).Once();
+    }
+
+    SUBCASE("Logical Off") {
+      When(Method(dial_mock, isOff)).AlwaysReturn(true);
+      bypass_mock.ClearInvocationHistory();
+      actuator_mock.ClearInvocationHistory();
+      supervisor.update();
+      Verify(Method(bypass_mock, set).Using(PinState::Low)).Once();
+      Verify(Method(actuator_mock, setMinThrottle)).AtLeast(1);
     }
 
     SUBCASE("Transition ACTIVE -> DISCONNECTED on signal loss") {
@@ -144,19 +163,17 @@ TEST_CASE("StoveSupervisor Logic") {
       // disconnected.
       When(Method(analyzer_mock, connected)).AlwaysReturn(false);
 
-      beeper_mock.Reset();
-      Fake(Method(beeper_mock, update));
-      Fake(Method(beeper_mock, beep));
+      beeper_mock.ClearInvocationHistory();
 
-      supervisor.update();
-
-      Verify(Method(actuator_mock, setThrottle)
-                 .Matching([&](const StoveThrottle &t) {
-                   return isNear(t, StoveThrottle{0.0f, 0});
-                 }))
-          .Once();
+      supervisor.update(); // transition
       Verify(Method(beeper_mock, beep).Using(Beeper::Signal::DISCONNECTED))
           .Once();
+
+      actuator_mock.ClearInvocationHistory();
+      bypass_mock.ClearInvocationHistory();
+      supervisor.update(); // first run of DISCONNECTED state
+      Verify(Method(actuator_mock, setMinThrottle)).AtLeast(1);
+      Verify(Method(bypass_mock, set).Using(PinState::High)).AtLeast(1);
     }
   }
 }

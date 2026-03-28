@@ -11,7 +11,7 @@ public:
   virtual ~StoveDial() = default;
 
   virtual float getPosition() const;
-  virtual bool isOff() const { return value_ < config_.min * 0.5f; }
+  virtual bool isOff() const { return value_ < config_.off; }
   virtual bool isBoil() const { return value_ > config_.boil; }
   virtual void update();
 

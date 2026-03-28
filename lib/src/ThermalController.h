@@ -6,7 +6,7 @@
 struct ThermalConfig {
   float p_factor = 0.1f;              // P-factor (1/K)
   float heat_loss_factor = 0.003f;    // Heat loss factor (1/K)
-  uint32_t system_lag_ms = 10000;     // Lookahead time (ms)
+  uint32_t system_lag_ms = 30 * 1000; // Lookahead time (ms)
   float ambient_temp = 20.0f;         // Ambient temperature (°C)
 };
 

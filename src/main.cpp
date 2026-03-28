@@ -91,7 +91,7 @@ void setup() {
   bypass_pin.begin();
   bypass_pin.set(PinState::Low);
   stove_pwm.begin();
-  stove_pwm.write(0.0f);
+  actuator.setMinThrottle();
 
   for (int pin : {D5, D6, D7, D8, D9}) {
     pinMode(pin, INPUT_PULLDOWN);

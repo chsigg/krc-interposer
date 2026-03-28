@@ -100,7 +100,7 @@ void BleThermometer::update() {
   analyzer_.setConnected(conn && now_ms - last_data_ms_ < 30 * 1000);
 
   if (conn && now_ms - last_rssi_read_ms_ >= 10 * 1000) {
-    Log << "RSSI: " << conn->getRssi() << "dBm\n";
+    Log << "BleThermometer: RSSI = " << conn->getRssi() << "dBm\n";
     last_rssi_read_ms_ = now_ms;
   }
 }
@@ -127,7 +127,7 @@ void BleThermometer::scanCallback(ble_gap_evt_adv_report_t *report) {
       ++num_allow_addresses_;
     }
     *end = address;
-    Log << "Added " << address << " to allow-list\n";
+    Log << "BleThermometer: Added " << address << " to allow-list\n";
   }
 
   std::array<char, 32> name = {};
@@ -135,7 +135,7 @@ void BleThermometer::scanCallback(ble_gap_evt_adv_report_t *report) {
           report, BLE_GAP_AD_TYPE_COMPLETE_LOCAL_NAME,
           reinterpret_cast<uint8_t *>(name.data()), name.size() - 1) ||
       strlen(name.data()) == 0) {
-    Log << "No name in advertising report\n";
+    Log << "BleThermometer: No name in advertising report\n";
     return;
   }
 
@@ -144,11 +144,11 @@ void BleThermometer::scanCallback(ble_gap_evt_adv_report_t *report) {
     return strcmp(name.data(), supported) == 0;
   };
   if (std::none_of(std::begin(kNames), std::end(kNames), pred)) {
-    Log << "Unrecognized name: '" << name.data() << "'\n";
+    Log << "BleThermometer: Unrecognized name: '" << name.data() << "'\n";
     return;
   }
 
-  Log << "Found " << name.data() << " at " << address << "\n";
+  Log << "BleThermometer: Found " << name.data() << " at " << address << "\n";
   resumer.release();
   Bluefruit.Central.connect(report);
 }
@@ -156,7 +156,7 @@ void BleThermometer::scanCallback(ble_gap_evt_adv_report_t *report) {
 void BleThermometer::connectCallback(uint16_t conn_handle) {
   BLEConnection *conn = Bluefruit.Connection(conn_handle);
   if (!conn) {
-    Log << "Failed to get connection object\n";
+    Log << "BleThermometer: Failed to get connection object\n";
     return;
   }
 
@@ -167,39 +167,39 @@ void BleThermometer::connectCallback(uint16_t conn_handle) {
       conn, [](BLEConnection *conn) { conn->disconnect(); });
 
   if (!service_.discover(conn_handle)) {
-    Log << "Service discovery failed\n";
+    Log << "BleThermometer: Service discovery failed\n";
     return;
   }
 
   if (!char_intermediate_.discover()) {
-    Log << "Intermediate temperature discovery failed\n";
+    Log << "BleThermometer: Intermediate temperature discovery failed\n";
     return;
   }
 
   if (!char_measurement_.discover()) {
-    Log << "Temperature measurement discovery failed\n";
+    Log << "BleThermometer: Temperature measurement discovery failed\n";
     return;
   }
 
   if (!char_intermediate_.enableNotify()) {
-    Log << "Enable notify failed\n";
+    Log << "BleThermometer: Enable notify failed\n";
     return;
   }
 
   // Request slow connection (440ms interval, 20s timeout)
   if (!conn->requestConnectionParameter(352, 0, 2000)) {
-    Log << "Failed to request connection parameters\n";
+    Log << "BleThermometer: Failed to request connection parameters\n";
     return;
   }
 
   if (!conn->monitorRssi()) {
-    Log << "Enable RSSI monitor failed\n";
+    Log << "BleThermometer: Enable RSSI monitor failed\n";
     return;
   }
 
   disconnector.release();
   blue_blinker_.blink(Blinker::Signal::SOLID);
-  Log << "Connected and Online\n";
+  Log << "BleThermometer: Connected and online\n";
 }
 
 void BleThermometer::disconnectCallback(uint16_t conn_handle, uint8_t reason) {

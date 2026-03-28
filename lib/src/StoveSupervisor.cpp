@@ -55,13 +55,19 @@ void StoveSupervisor::update() {
     if (now_ms - state_entry_ms_ > connected_wait_ms) {
       return transitionTo(State::ACTIVE);
     }
+    actuator_.setThrottle(
+        {lerp(1.0f, throttle_config_.min,
+              static_cast<float>(now_ms - state_entry_ms_) / connected_wait_ms),
+         0});
+    bypass_pin_.set(PinState::High);
     break;
   case State::ACTIVE:
     if (!analyzer_.connected()) {
       return transitionTo(State::DISCONNECTED);
     }
     if (dial_.isOff()) {
-      actuator_.setThrottle({0.0f, 0});
+      actuator_.setMinThrottle();
+      bypass_pin_.set(PinState::Low);
       break;
     }
     controller_.update();
@@ -76,11 +82,14 @@ void StoveSupervisor::update() {
 
     actuator_.setThrottle({is_temp_low_ ? 1.0f : controller_.getPower(),
                            is_temp_low_ ? throttle_config_.num_boosts : 0});
+    bypass_pin_.set(PinState::High);
     break;
   case State::DISCONNECTED:
     if (analyzer_.connected()) {
       return transitionTo(State::ACTIVE);
     }
+    actuator_.setMinThrottle();
+    bypass_pin_.set(PinState::High);
     break;
   }
 }
@@ -95,20 +104,17 @@ void StoveSupervisor::transitionTo(State new_state) {
 
   state_ = new_state;
   state_entry_ms_ = millis();
-  bypass_pin_.set(state_ == State::SCANNING ? PinState::Low : PinState::High);
 
   switch (state_) {
   case State::SCANNING:
     break;
   case State::CONNECTED:
     beeper_.beep(Beeper::Signal::CONNECTED);
-    actuator_.setThrottle({0.0f, 0});
     break;
   case State::ACTIVE:
     beeper_.beep(Beeper::Signal::NONE);
     break;
   case State::DISCONNECTED:
-    actuator_.setThrottle({0.0f, 0});
     beeper_.beep(Beeper::Signal::DISCONNECTED);
     break;
   }

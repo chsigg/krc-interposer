@@ -18,6 +18,17 @@ TEST_CASE("StoveActuator Logic") {
 
   StoveActuator actuator(pwm_mock.get(), config);
 
+  SUBCASE("Minimum output clamping") {
+    // Request a value below the threshold (or even 0)
+    actuator.setThrottle({.position = 0.0f, .boost = 0});
+    Verify(Method(pwm_mock, write).Using(config.min)).Once();
+
+    // Request a value slightly above the threshold
+    float above_pos = config.min * 1.1f;
+    actuator.setThrottle({.position = above_pos / config.max, .boost = 0});
+    Verify(Method(pwm_mock, write).Using(above_pos)).Once();
+  }
+
   SUBCASE("Normal operation (no boost)") {
     StoveThrottle throttle{.position = 0.5f, .boost = 0};
 
