@@ -64,6 +64,9 @@ void BleThermometer::begin() {
         }
       });
   char_intermediate_.begin(&service_);
+
+  char_measurement_.setIndicateCallback(
+      [](BLEClientCharacteristic *, uint8_t *data, uint16_t len) {});
   char_measurement_.begin(&service_);
 
   Bluefruit.Scanner.setRxCallback([](ble_gap_evt_adv_report_t *report) {
