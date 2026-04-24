@@ -3,7 +3,7 @@
 #include <cmath>
 
 #include "Beeper.h"
-#include "StoveActuator.h"
+#include "StoveController.h"
 #include "StoveDial.h"
 #include "StoveSupervisor.h"
 #include "ThermalController.h"
@@ -21,20 +21,19 @@ TEST_CASE("StoveSupervisor Logic") {
 
   // --- Collaborator Mocks ---
   Mock<StoveDial> dial_mock;
-  Mock<StoveActuator> actuator_mock;
+  Mock<StoveController> controller_mock;
   Mock<Beeper> beeper_mock;
   Mock<TrendAnalyzer> analyzer_mock;
-  Mock<ThermalController> controller_mock;
-  Mock<DigitalWritePin> bypass_mock;
+  Mock<ThermalController> thermal_controller_mock;
 
   static bool poweroff_called = false;
   poweroff_called = false;
   auto poweroff_fn = []() { poweroff_called = true; };
 
   // --- DUT ---
-  StoveSupervisor supervisor(dial_mock.get(), actuator_mock.get(),
-                             controller_mock.get(), beeper_mock.get(),
-                             analyzer_mock.get(), bypass_mock.get(),
+  StoveSupervisor supervisor(dial_mock.get(), controller_mock.get(),
+                             thermal_controller_mock.get(), beeper_mock.get(),
+                             analyzer_mock.get(),
                              stove_config, throttle_config, poweroff_fn);
 
   static uint32_t current_time_ms = 0;
@@ -55,19 +54,19 @@ TEST_CASE("StoveSupervisor Logic") {
   When(Method(dial_mock, isOff)).AlwaysReturn(false);
   When(Method(dial_mock, isBoil)).AlwaysReturn(false);
   Fake(Method(dial_mock, update));
-  Fake(Method(actuator_mock, setThrottle));
-  Fake(Method(actuator_mock, setMinThrottle));
-  Fake(Method(actuator_mock, update));
+  Fake(Method(controller_mock, setThrottle));
+  Fake(Method(controller_mock, setMinThrottle));
+  Fake(Method(controller_mock, setPassthrough));
+  Fake(Method(controller_mock, update));
   Fake(Method(beeper_mock, beep));
   Fake(Method(beeper_mock, update));
   When(Method(beeper_mock, isIdle)).AlwaysReturn(false);
-  When(Method(controller_mock, getPower)).AlwaysReturn(0.0f);
-  Fake(Method(controller_mock, setTargetTemp));
-  Fake(Method(controller_mock, update));
-  When(Method(controller_mock, getTargetTemp)).AlwaysReturn(0.0f);
+  When(Method(thermal_controller_mock, getPower)).AlwaysReturn(0.0f);
+  Fake(Method(thermal_controller_mock, setTargetTemp));
+  Fake(Method(thermal_controller_mock, update));
+  When(Method(thermal_controller_mock, getTargetTemp)).AlwaysReturn(0.0f);
   When(Method(analyzer_mock, connected)).AlwaysReturn(false);
   When(Method(analyzer_mock, getValue)).AlwaysReturn(0.0f);
-  Fake(Method(bypass_mock, set));
 
   SUBCASE("Power off sequence") {
     When(Method(dial_mock, isOff)).AlwaysReturn(true);
@@ -84,10 +83,10 @@ TEST_CASE("StoveSupervisor Logic") {
       supervisor.update(); // transition happens here
       // CONNECTED entry beeps CONNECTED
       Verify(Method(beeper_mock, beep).Using(Beeper::Signal::CONNECTED)).Once();
-      
+
       supervisor.update(); // first run of CONNECTED state
       // First update at t=0 should ramp starting at 1.0f
-      Verify(Method(actuator_mock, setThrottle)
+      Verify(Method(controller_mock, setThrottle)
                  .Matching([&](const StoveThrottle &t) {
                    return isNear(t, StoveThrottle{1.0f, 0});
                  }))
@@ -99,12 +98,12 @@ TEST_CASE("StoveSupervisor Logic") {
     // Get to CONNECTED
     When(Method(analyzer_mock, connected)).AlwaysReturn(true);
     supervisor.update(); // SCANNING -> CONNECTED
-    actuator_mock.ClearInvocationHistory();
+    controller_mock.ClearInvocationHistory();
 
     SUBCASE("Ramp down during CONNECTED") {
       set_time(500);
       supervisor.update();
-      Verify(Method(actuator_mock, setThrottle)
+      Verify(Method(controller_mock, setThrottle)
                  .Matching([&](const StoveThrottle &t) {
                    return isNear(t, StoveThrottle{0.575f, 0});
                  }))
@@ -132,29 +131,26 @@ TEST_CASE("StoveSupervisor Logic") {
     set_time(1001);
     supervisor.update(); // CONNECTED -> ACTIVE
 
-    actuator_mock.ClearInvocationHistory();
+    controller_mock.ClearInvocationHistory();
 
     SUBCASE("PID Control Loop") {
       When(Method(dial_mock, getPosition)).AlwaysReturn(0.5f);
-      When(Method(controller_mock, getPower)).AlwaysReturn(0.4f);
+      When(Method(thermal_controller_mock, getPower)).AlwaysReturn(0.4f);
 
-      bypass_mock.ClearInvocationHistory();
-      controller_mock.ClearInvocationHistory();
+      thermal_controller_mock.ClearInvocationHistory();
       supervisor.update();
 
-      Verify(Method(bypass_mock, set).Using(PinState::High)).Once();
-      Verify(Method(controller_mock, setTargetTemp)).Once();
-      Verify(Method(controller_mock, update)).Once();
-      Verify(Method(actuator_mock, setThrottle)).Once();
+      Verify(Method(controller_mock, setPassthrough)).Once();
+      Verify(Method(thermal_controller_mock, setTargetTemp)).Once();
+      Verify(Method(thermal_controller_mock, update)).Once();
+      Verify(Method(controller_mock, setThrottle)).Once();
     }
 
     SUBCASE("Logical Off") {
       When(Method(dial_mock, isOff)).AlwaysReturn(true);
-      bypass_mock.ClearInvocationHistory();
-      actuator_mock.ClearInvocationHistory();
+      controller_mock.ClearInvocationHistory();
       supervisor.update();
-      Verify(Method(bypass_mock, set).Using(PinState::Low)).Once();
-      Verify(Method(actuator_mock, setMinThrottle)).AtLeast(1);
+      Verify(Method(controller_mock, setMinThrottle)).AtLeast(1);
     }
 
     SUBCASE("Transition ACTIVE -> DISCONNECTED on signal loss") {
@@ -169,11 +165,10 @@ TEST_CASE("StoveSupervisor Logic") {
       Verify(Method(beeper_mock, beep).Using(Beeper::Signal::DISCONNECTED))
           .Once();
 
-      actuator_mock.ClearInvocationHistory();
-      bypass_mock.ClearInvocationHistory();
+      controller_mock.ClearInvocationHistory();
       supervisor.update(); // first run of DISCONNECTED state
-      Verify(Method(actuator_mock, setMinThrottle)).AtLeast(1);
-      Verify(Method(bypass_mock, set).Using(PinState::High)).AtLeast(1);
+      Verify(Method(controller_mock, setMinThrottle)).AtLeast(1);
+      Verify(Method(controller_mock, setPassthrough)).AtLeast(1);
     }
   }
 }

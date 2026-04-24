@@ -9,7 +9,7 @@
 #include "Beeper.h"
 #include "BleTelemetry.h"
 #include "BleThermometer.h"
-#include "StoveActuator.h"
+#include "StoveController.h"
 #include "StoveDial.h"
 #include "StoveSupervisor.h"
 #include "ThermalController.h"
@@ -24,7 +24,6 @@ constexpr int kUartRxPin = D1;
 constexpr int kUartTxPin = D0;
 
 static void shutdown();
-static void poweroff();
 
 // --- Hardware Instantiation ---
 
@@ -34,11 +33,15 @@ ArduinoLogger arduino_logger(buffered_logger);
 TimestampLogger timestamp_logger(arduino_logger);
 Logger &Log = timestamp_logger;
 
+// UART communication with PIC
 ArduinoUart uart(kUartRxPin, kUartTxPin);
-ThrottleConfig throttle_config; // Defaults
+
+// Configuration
+ThrottleConfig throttle_config;
+ThermalConfig thermal_config;
 
 // Actuators
-StoveActuator actuator(uart, throttle_config);
+StoveController controller(uart, throttle_config);
 
 // Sensors
 StoveDial dial(uart, throttle_config);
@@ -51,21 +54,19 @@ ArduinoLed green_led(LED_GREEN);
 
 // Logic Modules
 TrendAnalyzer analyzer;
-ThermalConfig thermal_config; // Defaults
-ThermalController controller(analyzer, thermal_config);
+ThermalController thermal_controller(analyzer, thermal_config);
 
 // BLE Modules
 BleThermometer thermometer(analyzer);
-BleTelemetry telemetry(controller, analyzer, buffered_logger);
+BleTelemetry telemetry(thermal_controller, analyzer, buffered_logger);
 
 // Supervisor (bypassing is handled internally by uart)
 StoveConfig stove_config;
-StoveSupervisor supervisor(dial, actuator, controller, beeper, analyzer,
-                           uart, stove_config, throttle_config, shutdown);
+StoveSupervisor supervisor(dial, controller, thermal_controller, beeper, analyzer,
+                           stove_config, throttle_config, shutdown);
 
 void setup() {
   uart.begin();
-  uart.set(PinState::Low);
 
   for (int pin : {D4, D5, D6, D7, D8, D9, D10}) {
     pinMode(pin, INPUT_PULLDOWN);
@@ -87,16 +88,6 @@ void setup() {
   Bluefruit.setTxPower(8);
   Bluefruit.setName("KRC Interposer");
 
-  // Spin until we receive valid boil data from the PIC UART
-  while (uart.read() < throttle_config.boil) {
-    uart.update();
-    if (millis() > 10000) {
-      Log << "Boil level not detected, powering off.\n";
-      poweroff();
-    }
-    delay(10);
-  }
-
   buzzer.begin();
   beeper.beep(Beeper::Signal::POWER_ON);
 
@@ -115,10 +106,11 @@ void loop() {
   uart.update();
   thermometer.update();
   supervisor.update();
-  red_led.set(controller.getPower());
+  red_led.set(thermal_controller.getPower());
   telemetry.update();
   delay(20);
 }
+
 static void shutdown() {
   beeper.beep(Beeper::Signal::POWER_OFF);
   while (!beeper.isIdle()) {
@@ -132,10 +124,6 @@ static void shutdown() {
   telemetry.update();
   telemetry.end();
 
-  poweroff();
-}
-
-static void poweroff() {
   Serial.flush();
   Serial.end();
   Serial1.flush();

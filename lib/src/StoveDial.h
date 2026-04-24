@@ -1,13 +1,13 @@
 #pragma once
 
-#include "AnalogReadPin.h"
+#include "DialSensor.h"
 #include "StoveThrottle.h"
 #include <array>
 #include <cstdint>
 
 class StoveDial {
 public:
-  StoveDial(const AnalogReadPin &pin, const ThrottleConfig &config);
+  StoveDial(const DialSensor &sensor, const ThrottleConfig &config);
   virtual ~StoveDial() = default;
 
   virtual float getPosition() const;
@@ -16,7 +16,7 @@ public:
   virtual void update();
 
 private:
-  const AnalogReadPin &pin_;
+  const DialSensor &sensor_;
   const ThrottleConfig config_;
 
   float value_ = 0.0f;

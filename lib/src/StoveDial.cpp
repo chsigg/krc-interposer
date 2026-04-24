@@ -4,11 +4,11 @@
 #include <algorithm>
 #include <cmath>
 
-StoveDial::StoveDial(const AnalogReadPin &pin, const ThrottleConfig &config)
-    : pin_(pin), config_(config) {}
+StoveDial::StoveDial(const DialSensor &sensor, const ThrottleConfig &config)
+    : sensor_(sensor), config_(config) {}
 
 void StoveDial::update() {
-  value_ = pin_.read();
+  value_ = sensor_.read();
 
   if (value_ <= config_.max) {
     position_ = std::max(0.0f, value_ / config_.max);

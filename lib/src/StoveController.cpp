@@ -1,33 +1,36 @@
-#include "StoveActuator.h"
-#include "DigitalWritePin.h"
+#include "StoveController.h"
 #include "Logger.h"
 #include "sfloat.h"
 #include <algorithm>
 
 extern "C" uint32_t millis();
 
-StoveActuator::StoveActuator(AnalogWritePin &pwm_pin,
+StoveController::StoveController(StoveActuator &actuator,
                              const ThrottleConfig &config)
-    : pwm_pin_(pwm_pin), config_(config) {}
+    : actuator_(actuator), config_(config) {}
 
-void StoveActuator::setThrottle(StoveThrottle throttle) {
+void StoveController::setThrottle(StoveThrottle throttle) {
   if (!isNear(throttle, printed_throttle_)) {
-    Log << "StoveActuator::setThrottle(/*position=*/" << throttle.position
+    Log << "StoveController::setThrottle(/*position=*/" << throttle.position
         << ", /*boost=*/" << throttle.boost << ")\n";
     printed_throttle_ = throttle;
   }
   throttle_ = throttle;
 }
 
-void StoveActuator::setMinThrottle() { setThrottle({config_.min, 0}); }
+void StoveController::setMinThrottle() { setThrottle({config_.min, 0}); }
 
-void StoveActuator::update() {
+void StoveController::setPassthrough() {
+  actuator_.setPassthrough();
+}
+
+void StoveController::update() {
   uint32_t now_ms = millis();
   updateTargetPwm(now_ms);
   writeSlewedPwm(now_ms);
 }
 
-void StoveActuator::updateTargetPwm(uint32_t now_ms) {
+void StoveController::updateTargetPwm(uint32_t now_ms) {
   float value = std::max(config_.min, throttle_.position * config_.max);
 
   if (throttle_.boost == current_boost_) {
@@ -59,10 +62,10 @@ void StoveActuator::updateTargetPwm(uint32_t now_ms) {
   last_boost_change_ms_ = now_ms;
 }
 
-void StoveActuator::writeSlewedPwm(uint32_t now_ms) {
+void StoveController::writeSlewedPwm(uint32_t now_ms) {
   float max_delta = (now_ms - last_update_ms_) * 0.001f;
   current_pwm_ = std::clamp(target_pwm_, current_pwm_ - max_delta,
                             current_pwm_ + max_delta);
-  pwm_pin_.write(current_pwm_);
+  actuator_.setPwm(current_pwm_);
   last_update_ms_ = now_ms;
 }

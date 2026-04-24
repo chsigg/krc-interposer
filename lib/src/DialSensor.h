@@ -2,9 +2,9 @@
 
 #include <cstdint>
 
-class AnalogReadPin {
+class DialSensor {
 public:
-    virtual ~AnalogReadPin() = default;
+    virtual ~DialSensor() = default;
 
     virtual float read() const = 0;
 };

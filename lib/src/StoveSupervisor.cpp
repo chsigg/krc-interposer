@@ -6,15 +6,14 @@
 
 extern "C" uint32_t millis();
 
-StoveSupervisor::StoveSupervisor(StoveDial &dial, StoveActuator &actuator,
-                                 ThermalController &controller, Beeper &beeper,
+StoveSupervisor::StoveSupervisor(StoveDial &dial, StoveController &controller,
+                                 ThermalController &thermal_controller, Beeper &beeper,
                                  TrendAnalyzer &analyzer,
-                                 DigitalWritePin &bypass_pin,
                                  const StoveConfig &stove_config,
                                  const ThrottleConfig &throttle_config,
                                  PowerOffCallback power_off_cb)
-    : dial_(dial), actuator_(actuator), controller_(controller),
-      beeper_(beeper), analyzer_(analyzer), bypass_pin_(bypass_pin),
+    : dial_(dial), stove_controller_(controller), thermal_controller_(thermal_controller),
+      beeper_(beeper), analyzer_(analyzer),
       stove_config_(stove_config), throttle_config_(throttle_config),
       power_off_cb_(power_off_cb) {}
 
@@ -23,13 +22,13 @@ static float lerp(float a, float b, float t) { return a + t * (b - a); }
 void StoveSupervisor::update() {
   dial_.update();
   beeper_.update();
-  actuator_.update();
+  stove_controller_.update();
 
   if (float dial_target_temp =
           lerp(stove_config_.min_temp_c, stove_config_.max_temp_c,
                dial_.getPosition());
       std::fabs(dial_target_temp - dial_target_temp_) > 1.0f) {
-    controller_.setTargetTemp(dial_target_temp);
+    thermal_controller_.setTargetTemp(dial_target_temp);
     dial_target_temp_ = dial_target_temp;
   }
 
@@ -45,7 +44,7 @@ void StoveSupervisor::update() {
 
   switch (state_) {
   case State::SCANNING:
-    actuator_.setThrottle({dial_.getPosition(), 0});
+    stove_controller_.setThrottle({dial_.getPosition(), 0});
     if (analyzer_.connected()) {
       return transitionTo(State::CONNECTED);
     }
@@ -57,41 +56,40 @@ void StoveSupervisor::update() {
     if (now_ms - state_entry_ms_ > connected_wait_ms) {
       return transitionTo(State::ACTIVE);
     }
-    actuator_.setThrottle(
+    stove_controller_.setThrottle(
         {lerp(1.0f, throttle_config_.min,
               static_cast<float>(now_ms - state_entry_ms_) / connected_wait_ms),
          0});
-    bypass_pin_.set(PinState::High);
+    stove_controller_.setPassthrough();
     break;
   case State::ACTIVE:
     if (!analyzer_.connected()) {
       return transitionTo(State::DISCONNECTED);
     }
     if (dial_.isOff()) {
-      actuator_.setMinThrottle();
-      bypass_pin_.set(PinState::Low);
+      stove_controller_.setMinThrottle();
       break;
     }
-    controller_.update();
+    thermal_controller_.update();
 
     // Engage boost if we are > 20°C away (approx 60s of heating).
     // Disengage boost if we are < 10°C away and hand over to PID.
     is_temp_low_ = [&] {
       float delta_temp =
-          controller_.getTargetTemp() - analyzer_.getValue(now_ms);
+          thermal_controller_.getTargetTemp() - analyzer_.getValue(now_ms);
       return delta_temp >= (is_temp_low_ ? 10.0f : 20.0f);
     }();
 
-    actuator_.setThrottle({is_temp_low_ ? 1.0f : controller_.getPower(),
+    stove_controller_.setThrottle({is_temp_low_ ? 1.0f : thermal_controller_.getPower(),
                            is_temp_low_ ? throttle_config_.num_boosts : 0});
-    bypass_pin_.set(PinState::High);
+    stove_controller_.setPassthrough();
     break;
   case State::DISCONNECTED:
     if (analyzer_.connected()) {
       return transitionTo(State::ACTIVE);
     }
-    actuator_.setMinThrottle();
-    bypass_pin_.set(PinState::High);
+    stove_controller_.setMinThrottle();
+    stove_controller_.setPassthrough();
     break;
   }
 }

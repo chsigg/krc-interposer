@@ -81,4 +81,4 @@ The firmware enforces strict separation between high-level control logic and har
 *   **`TrendAnalyzer`:** Buffers BLE temperature readings to calculate predicted future temperatures (compensating for system thermal lag) and the current rate of change.
 *   **`BleThermometer` (BLE Central):** Scans for and connects to supported KRC lids, passing incoming temperature data to the `TrendAnalyzer`.
 *   **`BleTelemetry` (BLE Peripheral):** Broadcasts internal state data and buffered logs to connected clients.
-*   **Hardware Abstractions:** Interfaces like `AnalogWritePin` and `DigitalWritePin` decouple the core logic from Arduino-specific functions, allowing execution against mock objects in the test suite.
+*   **Hardware Abstractions:** Interfaces like `DialSensor` and `StoveActuator` or 'Led' decouple the core logic from Arduino-specific functions, allowing execution against mock objects in the test suite.

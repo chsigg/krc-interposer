@@ -1,17 +1,17 @@
 #include "StoveDial.h"
-#include "AnalogReadPin.h"
+#include "DialSensor.h"
 #include <ArduinoFake.h>
 #include <doctest.h>
 
 using namespace fakeit;
 
 TEST_CASE("StoveDial Logic") {
-  Mock<AnalogReadPin> pin_mock;
+  Mock<DialSensor> sensor_mock;
   ThrottleConfig config;
-  StoveDial dial(pin_mock.get(), config);
+  StoveDial dial(sensor_mock.get(), config);
 
   auto set_reading = [&](float val) {
-    When(Method(pin_mock, read)).AlwaysReturn(val);
+    When(Method(sensor_mock, read)).AlwaysReturn(val);
     dial.update();
   };
 

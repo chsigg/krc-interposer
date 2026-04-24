@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Beeper.h"
-#include "StoveActuator.h"
+#include "StoveController.h"
 #include "StoveDial.h"
 #include "StoveThrottle.h"
 #include "ThermalController.h"
@@ -16,10 +16,9 @@ class StoveSupervisor {
 public:
   using PowerOffCallback = void (*)();
 
-  StoveSupervisor(StoveDial &dial, StoveActuator &actuator,
-                  ThermalController &controller, Beeper &beeper,
+  StoveSupervisor(StoveDial &dial, StoveController &controller,
+                  ThermalController &thermal_controller, Beeper &beeper,
                   TrendAnalyzer &analyzer,
-                  DigitalWritePin &bypass_pin,
                   const StoveConfig &stove_config,
                   const ThrottleConfig &throttle_config,
                   PowerOffCallback power_off_cb);
@@ -38,11 +37,10 @@ private:
   const char *getStateName(State state) const;
 
   StoveDial &dial_;
-  StoveActuator &actuator_;
-  ThermalController &controller_;
+  StoveController &stove_controller_;
+  ThermalController &thermal_controller_;
   Beeper &beeper_;
   TrendAnalyzer &analyzer_;
-  DigitalWritePin &bypass_pin_;
   const StoveConfig stove_config_;
   const ThrottleConfig throttle_config_;
   PowerOffCallback power_off_cb_;
