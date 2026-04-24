@@ -1,6 +1,6 @@
 #pragma once
 
-#include "DigitalWritePin.h"
+#include "Led.h"
 #include <cstdint>
 #include <sys/types.h>
 
@@ -13,13 +13,13 @@ public:
     SOLID,
   };
 
-  explicit Blinker(DigitalWritePin &led);
+  explicit Blinker(Led &led);
 
   void blink(Signal signal);
   void update();
 
 private:
-  DigitalWritePin &led_;
+  Led &led_;
 
   uint8_t step_ = kIdleStep;
   uint32_t step_end_ms_ = 0;

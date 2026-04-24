@@ -11,5 +11,5 @@ class DigitalWritePin {
 public:
     virtual ~DigitalWritePin() = default;
 
-    virtual void set(PinState state) const = 0;
+    virtual void set(PinState state) = 0;
 };

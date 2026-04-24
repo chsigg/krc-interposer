@@ -2,11 +2,10 @@
 #include <nrf_lpcomp.h>
 #include <nrf_pwm.h>
 
-#include "ArduinoAnalogReadPin.h"
-#include "ArduinoAnalogWritePin.h"
 #include "ArduinoBuzzer.h"
-#include "ArduinoDigitalWritePin.h"
+#include "ArduinoLed.h"
 #include "ArduinoLogger.h"
+#include "ArduinoUart.h"
 #include "Beeper.h"
 #include "BleTelemetry.h"
 #include "BleThermometer.h"
@@ -19,32 +18,10 @@
 
 void delayUs(uint32_t us) { delayMicroseconds(us); }
 
-constexpr int kStovePwmPin = A0;
-constexpr int kBuzzerPPin = A1;
-constexpr int kBuzzerNPin = A2;
-constexpr int kDialReadPin = A3;
-constexpr int kDialRefPin = A4;
-constexpr int kBypassPin = D10;
-
-class DialReadPin : public AnalogReadPin {
-public:
-  void begin() {
-    read_pin_.begin();
-    ref_pin_.begin();
-  }
-
-  float read() const override {
-    float ref = ref_pin_.read();
-    if (ref > 1 << (ADC_RESOLUTION - 2)) {
-      return read_pin_.read() / ref;
-    }
-    return 0.0f;
-  }
-
-private:
-  ArduinoAnalogReadPin read_pin_{kDialReadPin};
-  ArduinoAnalogReadPin ref_pin_{kDialRefPin};
-};
+constexpr int kBuzzerPPin = A2;
+constexpr int kBuzzerNPin = A3;
+constexpr int kUartRxPin = D1;
+constexpr int kUartTxPin = D0;
 
 static void shutdown();
 static void poweroff();
@@ -57,21 +34,20 @@ ArduinoLogger arduino_logger(buffered_logger);
 TimestampLogger timestamp_logger(arduino_logger);
 Logger &Log = timestamp_logger;
 
-// Actuators
-ArduinoAnalogWritePin stove_pwm(kStovePwmPin);
-ArduinoDigitalWritePin bypass_pin(kBypassPin);
+ArduinoUart uart(kUartRxPin, kUartTxPin);
 ThrottleConfig throttle_config; // Defaults
-StoveActuator actuator(stove_pwm, throttle_config);
+
+// Actuators
+StoveActuator actuator(uart, throttle_config);
 
 // Sensors
-DialReadPin dial_read_pin;
-StoveDial dial(dial_read_pin, throttle_config);
+StoveDial dial(uart, throttle_config);
 
 // Feedback
 ArduinoBuzzer buzzer(NRF_PWM3, kBuzzerPPin, kBuzzerNPin);
 Beeper beeper(buzzer);
-ArduinoAnalogWritePin red_led(LED_RED);
-ArduinoDigitalWritePin green_led(LED_GREEN);
+ArduinoLed red_led(LED_RED);
+ArduinoLed green_led(LED_GREEN);
 
 // Logic Modules
 TrendAnalyzer analyzer;
@@ -82,27 +58,24 @@ ThermalController controller(analyzer, thermal_config);
 BleThermometer thermometer(analyzer);
 BleTelemetry telemetry(controller, analyzer, buffered_logger);
 
-// Supervisor
+// Supervisor (bypassing is handled internally by uart)
 StoveConfig stove_config;
 StoveSupervisor supervisor(dial, actuator, controller, beeper, analyzer,
-                           bypass_pin, stove_config, throttle_config, shutdown);
+                           uart, stove_config, throttle_config, shutdown);
 
 void setup() {
-  bypass_pin.begin();
-  bypass_pin.set(PinState::Low);
+  uart.begin();
+  uart.set(PinState::Low);
 
-  for (int pin : {D5, D6, D7, D8, D9}) {
+  for (int pin : {D4, D5, D6, D7, D8, D9, D10}) {
     pinMode(pin, INPUT_PULLDOWN);
   }
 
-  analogReadResolution(ADC_RESOLUTION);
   analogWriteResolution(ADC_RESOLUTION);
 
-  stove_pwm.begin();
-  dial_read_pin.begin();
   red_led.begin();
   green_led.begin();
-  green_led.set(PinState::Low);
+  green_led.set(1.0f);
 
   Serial.begin(115200);
 
@@ -114,11 +87,14 @@ void setup() {
   Bluefruit.setTxPower(8);
   Bluefruit.setName("KRC Interposer");
 
-  while (dial_read_pin.read() < throttle_config.boil) {
+  // Spin until we receive valid boil data from the PIC UART
+  while (uart.read() < throttle_config.boil) {
+    uart.update();
     if (millis() > 10000) {
       Log << "Boil level not detected, powering off.\n";
       poweroff();
     }
+    delay(10);
   }
 
   buzzer.begin();
@@ -132,17 +108,17 @@ void setup() {
 
   thermometer.begin();
   telemetry.begin();
-  green_led.set(PinState::High);
+  green_led.set(0.0f);
 }
 
 void loop() {
+  uart.update();
   thermometer.update();
   supervisor.update();
-  red_led.write(1.0f - controller.getPower());
+  red_led.set(controller.getPower());
   telemetry.update();
   delay(20);
 }
-
 static void shutdown() {
   beeper.beep(Beeper::Signal::POWER_OFF);
   while (!beeper.isIdle()) {
@@ -162,6 +138,8 @@ static void shutdown() {
 static void poweroff() {
   Serial.flush();
   Serial.end();
+  Serial1.flush();
+  Serial1.end();
 
   for (auto pwm : {NRF_PWM0, NRF_PWM1, NRF_PWM2, NRF_PWM3}) {
     nrf_pwm_disable(pwm);
@@ -169,25 +147,12 @@ static void poweroff() {
   for (int pin : {kBuzzerPPin, kBuzzerNPin}) {
     pinMode(pin, INPUT_PULLDOWN);
   }
-  for (int pin : {kStovePwmPin, kDialReadPin, kDialRefPin, kBypassPin}) {
-    pinMode(pin, INPUT);
-  }
   for (int pin : {LED_RED, LED_GREEN, LED_BLUE}) {
     pinMode(pin, INPUT_PULLUP);
   }
 
-  // Set up boot trigger when pin is 7/8 of VDD.
-  nrf_lpcomp_disable(NRF_LPCOMP);
-  const nrf_lpcomp_config_t lpcomp_config = {.reference =
-                                                 NRF_LPCOMP_REF_SUPPLY_6_8,
-                                             .detection = NRF_LPCOMP_DETECT_UP,
-                                             .hyst = NRF_LPCOMP_HYST_ENABLED};
-  nrf_lpcomp_configure(NRF_LPCOMP, &lpcomp_config);
-  nrf_lpcomp_input_select(NRF_LPCOMP, NRF_LPCOMP_INPUT_5);
-  nrf_lpcomp_enable(NRF_LPCOMP);
-  nrf_lpcomp_task_trigger(NRF_LPCOMP, NRF_LPCOMP_TASK_START);
-  while (!nrf_lpcomp_event_check(NRF_LPCOMP, NRF_LPCOMP_EVENT_READY)) {
-  } // Wait for ready
-
+  // Set up System OFF Boot trigger based on UART RX Start Bit (High-to-Low)
+  nrf_gpio_cfg_sense_input(g_ADigitalPinMap[kUartRxPin], NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
   sd_power_system_off();
 }
+

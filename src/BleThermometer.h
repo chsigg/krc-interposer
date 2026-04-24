@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <limits>
 
-#include "ArduinoDigitalWritePin.h"
+#include "ArduinoLed.h"
 #include "Blinker.h"
 #include "TrendAnalyzer.h"
 
@@ -28,7 +28,7 @@ private:
 
   TrendAnalyzer &analyzer_;
 
-  ArduinoDigitalWritePin blue_led_{LED_BLUE};
+  ArduinoLed blue_led_{LED_BLUE};
   Blinker blue_blinker_{blue_led_};
 
   BLEClientService service_ = {UUID16_SVC_HEALTH_THERMOMETER};
