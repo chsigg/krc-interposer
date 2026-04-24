@@ -21,7 +21,7 @@ void StoveController::setThrottle(StoveThrottle throttle) {
 void StoveController::update() {
   uint32_t now_ms = millis();
   updateTargetPwm(now_ms);
-  actuator_.setPwm(target_pwm_);
+  actuator_.write(target_pwm_);
 }
 
 void StoveController::updateTargetPwm(uint32_t now_ms) {

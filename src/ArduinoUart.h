@@ -19,29 +19,28 @@ public:
 
   void update() {
     // 1. Send request/command to PIC
-    uint8_t tx = std::clamp<int>(target_power_ * 255, 0, 255);
+    uint8_t tx = std::clamp<int>(tx_value_ * 255, 0, 255);
     Serial1.write(tx);
-    
+
     // 2. Wait for response (with a short timeout)
     uint32_t start_ms = millis();
     while (Serial1.available() == 0 && millis() - start_ms < 10) {
       // Wait up to 10ms for response
     }
-    
+
     // 3. Read response if available
     if (Serial1.available() > 0) {
       uint8_t rx = Serial1.read();
-      latest_dial_ = rx * (1.0f / 255);
+      rx_value_ = rx * (1.0f / 255);
     }
   }
 
-  float read() const override { return latest_dial_; }
-
-  void setPwm(float val) override { target_power_ = val; }
+  float read() const override { return rx_value_; }
+  void write(float value) override { tx_value_ = value; }
 
 private:
   const int rx_pin_;
   const int tx_pin_;
-  float latest_dial_ = 1.0f;
-  float target_power_ = 0.0f;
+  float rx_value_ = 1.0f;
+  float tx_value_ = 0.0f;
 };

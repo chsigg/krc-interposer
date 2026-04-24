@@ -26,10 +26,6 @@ TEST_CASE("StoveSupervisor Logic") {
   Mock<TrendAnalyzer> analyzer_mock;
   Mock<ThermalController> thermal_controller_mock;
 
-  static bool poweroff_called = false;
-  poweroff_called = false;
-  auto poweroff_fn = []() { poweroff_called = true; };
-
   // --- DUT ---
   StoveSupervisor supervisor(dial_mock.get(), controller_mock.get(),
                              thermal_controller_mock.get(), beeper_mock.get(),
@@ -55,7 +51,6 @@ TEST_CASE("StoveSupervisor Logic") {
   When(Method(dial_mock, isBoil)).AlwaysReturn(false);
   Fake(Method(dial_mock, update));
   Fake(Method(controller_mock, setThrottle));
-  Fake(Method(controller_mock, setPassthrough));
   Fake(Method(controller_mock, update));
   Fake(Method(beeper_mock, beep));
   Fake(Method(beeper_mock, update));
@@ -66,15 +61,6 @@ TEST_CASE("StoveSupervisor Logic") {
   When(Method(thermal_controller_mock, getTargetTemp)).AlwaysReturn(0.0f);
   When(Method(analyzer_mock, connected)).AlwaysReturn(false);
   When(Method(analyzer_mock, getValue)).AlwaysReturn(0.0f);
-
-  SUBCASE("Power off sequence") {
-    When(Method(dial_mock, isOff)).AlwaysReturn(true);
-    supervisor.update();
-
-    set_time(5001);
-    supervisor.update();
-    CHECK(poweroff_called == true);
-  }
 
   SUBCASE("SCANNING behavior") {
     SUBCASE("Transition SCANNING -> CONNECTED") {
@@ -139,7 +125,6 @@ TEST_CASE("StoveSupervisor Logic") {
       thermal_controller_mock.ClearInvocationHistory();
       supervisor.update();
 
-      Verify(Method(controller_mock, setPassthrough)).Once();
       Verify(Method(thermal_controller_mock, setTargetTemp)).Once();
       Verify(Method(thermal_controller_mock, update)).Once();
       Verify(Method(controller_mock, setThrottle)).Once();

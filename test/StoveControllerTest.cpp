@@ -11,8 +11,7 @@ TEST_CASE("StoveController Logic") {
   Fake(Method(ArduinoFake(), millis));
   Mock<StoveActuator> actuator_mock;
 
-  Fake(Method(actuator_mock, setPwm));
-  Fake(Method(actuator_mock, setPassthrough));
+  Fake(Method(actuator_mock, write));
 
   ThrottleConfig config;
 
@@ -23,14 +22,14 @@ TEST_CASE("StoveController Logic") {
     When(Method(ArduinoFake(), millis)).AlwaysReturn(0);
     controller.setThrottle({.position = 0.0f, .boost = 0});
     controller.update();
-    Verify(Method(actuator_mock, setPwm).Using(config.min)).Once();
+    Verify(Method(actuator_mock, write).Using(config.min)).Once();
 
     // Request a value slightly above the threshold
     float above_pos = config.min * 1.1f;
     When(Method(ArduinoFake(), millis)).AlwaysReturn(1000);
     controller.setThrottle({.position = above_pos / config.max, .boost = 0});
     controller.update();
-    Verify(Method(actuator_mock, setPwm).Using(above_pos)).Once();
+    Verify(Method(actuator_mock, write).Using(above_pos)).Once();
   }
 
   SUBCASE("Normal operation (no boost)") {
@@ -42,12 +41,12 @@ TEST_CASE("StoveController Logic") {
     controller.update();
 
     // value = 0.5 * config.max
-    Verify(Method(actuator_mock, setPwm).Using(0.5f * config.max)).Once();
+    Verify(Method(actuator_mock, write).Using(0.5f * config.max)).Once();
 
     When(Method(ArduinoFake(), millis)).AlwaysReturn(3001);
     controller.setThrottle(throttle);
     controller.update();
-    Verify(Method(actuator_mock, setPwm).Using(0.5f * config.max)).Twice();
+    Verify(Method(actuator_mock, write).Using(0.5f * config.max)).Twice();
   }
 
   SUBCASE("Boost activation") {
@@ -58,42 +57,42 @@ TEST_CASE("StoveController Logic") {
     When(Method(ArduinoFake(), millis)).Return(10000);
     controller.setThrottle(throttle_reset);
     controller.update();
-    Verify(Method(actuator_mock, setPwm).Using(config.max)).Once();
+    Verify(Method(actuator_mock, write).Using(config.max)).Once();
 
     // 2. Second call, start boosting.
     // Logic: write(config.boost)
     When(Method(ArduinoFake(), millis)).Return(11001);
     controller.setThrottle(throttle);
     controller.update();
-    Verify(Method(actuator_mock, setPwm).Using(config.boost)).Once();
+    Verify(Method(actuator_mock, write).Using(config.boost)).Once();
 
     // 3. Third call, continue boosting.
     // Logic: write(config.max), ++current_boost_
     When(Method(ArduinoFake(), millis)).Return(12002);
     controller.setThrottle(throttle);
     controller.update();
-    Verify(Method(actuator_mock, setPwm).Using(config.max)).Twice();
+    Verify(Method(actuator_mock, write).Using(config.max)).Twice();
 
     // 4. Fourth call, pulse high again to reach boost 2
     // Logic: write(config.boost)
     When(Method(ArduinoFake(), millis)).Return(13003);
     controller.setThrottle(throttle);
     controller.update();
-    Verify(Method(actuator_mock, setPwm).Using(config.boost)).Twice();
+    Verify(Method(actuator_mock, write).Using(config.boost)).Twice();
 
     // 5. Fifth call, finish pulse, increment boost to 2.
     // Logic: write(config.max), ++current_boost_
     When(Method(ArduinoFake(), millis)).Return(14004);
     controller.setThrottle(throttle);
     controller.update();
-    Verify(Method(actuator_mock, setPwm).Using(config.max)).Exactly(3);
+    Verify(Method(actuator_mock, write).Using(config.max)).Exactly(3);
 
     // 6. Sixth call, steady state (boost 2 == boost 2).
     // Should maintain value (config.max) and NOT reset.
     When(Method(ArduinoFake(), millis)).Return(15005);
     controller.setThrottle(throttle);
     controller.update();
-    Verify(Method(actuator_mock, setPwm).Using(config.max)).Exactly(4);
+    Verify(Method(actuator_mock, write).Using(config.max)).Exactly(4);
   }
 
   SUBCASE("Boost cancellation") {
@@ -105,13 +104,13 @@ TEST_CASE("StoveController Logic") {
     When(Method(ArduinoFake(), millis)).AlwaysReturn(10000);
     controller.setThrottle(boost_throttle);
     controller.update();
-    Verify(Method(actuator_mock, setPwm).Using(config.boost)).Once();
+    Verify(Method(actuator_mock, write).Using(config.boost)).Once();
 
     // Second call, finish pulse, current_boost becomes 1
     When(Method(ArduinoFake(), millis)).AlwaysReturn(11001);
     controller.setThrottle(boost_throttle);
     controller.update();
-    Verify(Method(actuator_mock, setPwm).Using(config.max)).Once();
+    Verify(Method(actuator_mock, write).Using(config.max)).Once();
 
     // 2. Cancel boost
     StoveThrottle zero_throttle{.position = 0.5f, .boost = 0};
@@ -121,6 +120,6 @@ TEST_CASE("StoveController Logic") {
 
     // Logic: throttle.boost (0) < current_boost_ (1).
     // writes deboost_value = min(value, config.max - 0.1)
-    Verify(Method(actuator_mock, setPwm).Using(std::min(value, config.max - 0.1f))).Once();
+    Verify(Method(actuator_mock, write).Using(std::min(value, config.max - 0.1f))).Once();
   }
 }
