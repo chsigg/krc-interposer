@@ -34,7 +34,7 @@ TEST_CASE("StoveSupervisor Logic") {
   StoveSupervisor supervisor(dial_mock.get(), controller_mock.get(),
                              thermal_controller_mock.get(), beeper_mock.get(),
                              analyzer_mock.get(),
-                             stove_config, throttle_config, poweroff_fn);
+                             stove_config, throttle_config);
 
   static uint32_t current_time_ms = 0;
   current_time_ms = 0;
@@ -55,7 +55,6 @@ TEST_CASE("StoveSupervisor Logic") {
   When(Method(dial_mock, isBoil)).AlwaysReturn(false);
   Fake(Method(dial_mock, update));
   Fake(Method(controller_mock, setThrottle));
-  Fake(Method(controller_mock, setMinThrottle));
   Fake(Method(controller_mock, setPassthrough));
   Fake(Method(controller_mock, update));
   Fake(Method(beeper_mock, beep));
@@ -146,12 +145,7 @@ TEST_CASE("StoveSupervisor Logic") {
       Verify(Method(controller_mock, setThrottle)).Once();
     }
 
-    SUBCASE("Logical Off") {
-      When(Method(dial_mock, isOff)).AlwaysReturn(true);
-      controller_mock.ClearInvocationHistory();
-      supervisor.update();
-      Verify(Method(controller_mock, setMinThrottle)).AtLeast(1);
-    }
+
 
     SUBCASE("Transition ACTIVE -> DISCONNECTED on signal loss") {
       // In the new architecture, the timeout is handled by the analyzer's
@@ -167,8 +161,7 @@ TEST_CASE("StoveSupervisor Logic") {
 
       controller_mock.ClearInvocationHistory();
       supervisor.update(); // first run of DISCONNECTED state
-      Verify(Method(controller_mock, setMinThrottle)).AtLeast(1);
-      Verify(Method(controller_mock, setPassthrough)).AtLeast(1);
+      Verify(Method(controller_mock, setThrottle).Matching([&](const StoveThrottle &t) { return t.position == throttle_config.min && t.boost == 0; })).AtLeast(1);
     }
   }
 }

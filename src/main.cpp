@@ -40,6 +40,8 @@ ArduinoUart uart(kUartRxPin, kUartTxPin);
 ThrottleConfig throttle_config;
 ThermalConfig thermal_config;
 
+uint32_t dial_off_start_ms = 0;
+
 // Actuators
 StoveController controller(uart, throttle_config);
 
@@ -63,7 +65,7 @@ BleTelemetry telemetry(thermal_controller, analyzer, buffered_logger);
 // Supervisor (bypassing is handled internally by uart)
 StoveConfig stove_config;
 StoveSupervisor supervisor(dial, controller, thermal_controller, beeper, analyzer,
-                           stove_config, throttle_config, shutdown);
+                           stove_config, throttle_config);
 
 void setup() {
   uart.begin();
@@ -103,6 +105,14 @@ void setup() {
 }
 
 void loop() {
+  if (dial.isOff()) {
+    if (millis() - dial_off_start_ms > 5000) {
+      return shutdown();
+    }
+  } else {
+    dial_off_start_ms = millis();
+  }
+
   uart.update();
   thermometer.update();
   supervisor.update();

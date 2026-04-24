@@ -38,22 +38,48 @@
 // ==========================================
 volatile uint8_t rx_byte = 0x00;
 volatile uint16_t sw_watchdog = 0; // Counts 10ms ticks (200 ticks = 2 seconds)
-// State Flags
-volatile bool is_telemetry_on = false;
-volatile bool is_override_on = false;
+
+typedef enum {
+    MODE_PASSTHROUGH,   // Passthrough on, Telemetry off
+    MODE_OVERRIDE       // Passthrough off, Telemetry on (Active)
+} SystemMode;
+
+volatile SystemMode mode_ = MODE_PASSTHROUGH;
+
+volatile bool rx_received = false;
+
+// ==========================================
+// Helper Functions
+// ==========================================
+uint8_t calculate_parity(uint8_t val) {
+    val ^= val >> 4;
+    val ^= val >> 2;
+    val ^= val >> 1;
+    return val & 1;
+}
 
 // ==========================================
 // Interrupt Service Routine
 // ==========================================
 void __interrupt() ISR(void) {
     // UART RX Interrupt
-    if (!PIE3bits.RC1IE || !PIR3bits.RC1IF) return;
+    if (PIE3bits.RC1IE && PIR3bits.RC1IF) {
+        uint8_t p_rx = RC1STAbits.RX9D;
+        rx_byte = RC1REG; // Always read to clear flag
+        
+        uint8_t p_expected = calculate_parity(rx_byte);
+        
+        if (p_rx == p_expected) {
+            sw_watchdog = 0;    // Reset SW WD on valid byte
+            rx_received = true;
+        }
+    }
     
-    rx_byte = RC1REG; // Always read to clear flag
-    sw_watchdog = 0;    // Reset SW WD on valid byte
-    
-    // RX byte evaluation & Safety Interlock
-    is_override_on = is_telemetry_on && (rx_byte != OVERRIDE_OFF_BYTE);
+    // Timer1 Interrupt (Wake from sleep)
+    if (PIE1bits.TMR1IE && PIR1bits.TMR1IF) {
+        PIR1bits.TMR1IF = 0; // Clear flag
+        TMR1 = 65226; // Reload for 10ms (65536 - 310)
+    }
 }
 
 // ==========================================
@@ -131,6 +157,10 @@ void init_hardware(void) {
     SP1BRGL = 51;
     SP1BRGH = 0;
     
+    // Configure for 9-bit mode (used for software parity)
+    TX1STAbits.TX9 = 1;  // Enable 9-bit transmission
+    RC1STAbits.RX9 = 1;  // Enable 9-bit reception
+    
     TX1STAbits.TXEN = 1;    // Enable transmitter
     RC1STAbits.CREN = 1;    // Enable continuous receive
     RC1STAbits.SPEN = 1;    // Enable serial port
@@ -141,6 +171,16 @@ void init_hardware(void) {
     PIE3bits.RC1IE = 1;     // Enable UART RX interrupt
     INTCONbits.PEIE = 1;    // Enable peripheral interrupts
     INTCONbits.GIE = 1;     // Enable global interrupts
+    
+    // ------------------------------------------
+    // 5. Timer1 Configuration (LFINTOSC for Sleep)
+    // ------------------------------------------
+    OSCENbits.LFIOREN = 1;  // Enable LFINTOSC
+    T1CLK = 0x03;           // Select LFINTOSC as clock source
+    T1CONbits.CKPS = 0b00;  // 1:1 Prescaler
+    TMR1 = 65226;           // Load for 10ms overflow
+    PIE1bits.TMR1IE = 1;    // Enable Timer1 interrupt
+    T1CONbits.ON = 1;       // Start Timer1
 }
 
 // ==========================================
@@ -173,6 +213,8 @@ uint8_t read_adc(void) {
 int main(void) {
     init_hardware();
     
+    uint8_t current_output_val = read_adc(); // Initialize to current dial position
+    
     while(1) {
         // Clear Hardware Watchdog Timer at top of loop
         CLRWDT(); 
@@ -181,30 +223,69 @@ int main(void) {
         if (sw_watchdog < SOFTWARE_WDT_MAX_TICKS) {
             sw_watchdog++;
         } else {
-            is_override_on = false;
-            is_telemetry_on = false;
+            mode_ = MODE_PASSTHROUGH; // Reset on timeout
         }
         
         uint8_t adc_value = read_adc();
         
-        // Enable telemetry if ADC reading > 230.
-        if (adc_value > TELEMETRY_THRESHOLD) {
-            is_telemetry_on = true;
+        // Enable telemetry/wake-up if ADC reading > 230.
+        // Only send wake-up if we haven't received anything recently (watchdog expired).
+        if (adc_value > TELEMETRY_THRESHOLD && sw_watchdog >= SOFTWARE_WDT_MAX_TICKS) {
+            // Send wake-up packet with Even Parity (0xFF has 8 ones, so parity is 0)
+            while (!PIR3bits.TX1IF);
+            TX1STAbits.TX9D = 0;
+            TX1REG = 0xFF; // Wake up packet
             sw_watchdog = 0;
         }
         
-        if (is_telemetry_on) {
-            // Transmit telemetry (raw 8-bit ADC value).
-            while (!PIR3bits.TX1IF); // Wait for buffer empty
+        // Process incoming packet if received
+        if (rx_received) {
+            rx_received = false; // Clear flag
+            
+            // Send response with telemetry (ADC value)
+            while (!PIR3bits.TX1IF);
+            TX1STAbits.TX9D = calculate_parity(adc_value);
             TX1REG = adc_value;
+            
+            // State Transitions
+            if (mode_ == MODE_PASSTHROUGH && rx_byte > SAFETY_CUTOFF_VAL && adc_value >= 10) {
+                mode_ = MODE_OVERRIDE;
+            }
+        }
+        
+        // Leave override mode if dial is off/Boil Mode
+        if (mode_ == MODE_OVERRIDE && adc_value < 10) {
+            mode_ = MODE_PASSTHROUGH;
         }
         
         // Output with safety cutoff
-        DAC1CON1 = is_override_on ? rx_byte : adc_value;
-        OPA1CON0bits.EN = (target_output_val >= SAFETY_CUTOFF_VAL);
+        uint8_t target_val;
+        if (mode_ == MODE_PASSTHROUGH) {
+            target_val = adc_value;
+        } else {
+            target_val = (rx_byte > SAFETY_CUTOFF_VAL) ? rx_byte : SAFETY_CUTOFF_VAL;
+        }
         
-        // Blocking delay to pace loop.
-        __delay_ms(10);
+        // Apply slew logic (approx 3 units per 10ms = 0.3 units/ms)
+        if (target_val > current_output_val) {
+            if (target_val - current_output_val > 3) {
+                current_output_val += 3;
+            } else {
+                current_output_val = target_val;
+            }
+        } else if (target_val < current_output_val) {
+            if (current_output_val - target_val > 3) {
+                current_output_val -= 3;
+            } else {
+                current_output_val = target_val;
+            }
+        }
+        
+        DAC1CON1 = current_output_val;
+        OPA1CON0bits.EN = (current_output_val >= SAFETY_CUTOFF_VAL);
+        
+        // Sleep until Timer1 or UART RX interrupt
+        SLEEP();
     }
     
     return 0;

@@ -18,16 +18,10 @@ void StoveController::setThrottle(StoveThrottle throttle) {
   throttle_ = throttle;
 }
 
-void StoveController::setMinThrottle() { setThrottle({config_.min, 0}); }
-
-void StoveController::setPassthrough() {
-  actuator_.setPassthrough();
-}
-
 void StoveController::update() {
   uint32_t now_ms = millis();
   updateTargetPwm(now_ms);
-  writeSlewedPwm(now_ms);
+  actuator_.setPwm(target_pwm_);
 }
 
 void StoveController::updateTargetPwm(uint32_t now_ms) {
@@ -62,10 +56,3 @@ void StoveController::updateTargetPwm(uint32_t now_ms) {
   last_boost_change_ms_ = now_ms;
 }
 
-void StoveController::writeSlewedPwm(uint32_t now_ms) {
-  float max_delta = (now_ms - last_update_ms_) * 0.001f;
-  current_pwm_ = std::clamp(target_pwm_, current_pwm_ - max_delta,
-                            current_pwm_ + max_delta);
-  actuator_.setPwm(current_pwm_);
-  last_update_ms_ = now_ms;
-}

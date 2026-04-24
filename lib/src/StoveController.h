@@ -11,13 +11,10 @@ public:
   virtual ~StoveController() = default;
 
   virtual void setThrottle(StoveThrottle throttle);
-  virtual void setMinThrottle();
-  virtual void setPassthrough();
   virtual void update();
 
 private:
   void updateTargetPwm(uint32_t now_ms);
-  void writeSlewedPwm(uint32_t now_ms);
 
   StoveActuator &actuator_;
   const ThrottleConfig config_;
@@ -29,6 +26,4 @@ private:
   StoveThrottle printed_throttle_ = {};
 
   float target_pwm_ = 0.0f;
-  float current_pwm_ = 0.0f;
-  uint32_t last_update_ms_ = std::numeric_limits<int32_t>::max();
 };

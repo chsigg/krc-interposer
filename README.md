@@ -9,7 +9,7 @@ The system is built around the Seeed Studio XIAO nRF52840 microcontroller. It is
 ## Operating Modes
 
 ### Wake and Connection
-Smart features are triggered by turning the dial to the stove's built-in **Boil Mode** (below 0). The resulting low resistance triggers a hardware comparator (`LPCOMP`) that wakes the XIAO.
+Smart features are triggered by turning the dial to the stove's built-in **Boil Mode** (below 0). The resulting resistance change is detected by a companion PIC microcontroller, which then wakes the XIAO via serial communication (UART RX).
 
 The microcontroller then takes control of the analog switch, routing its own filtered PWM output to the stove in place of the physical dial. It enters a scanning state to locate a Kuhn Rikon Comfort lid via BLE. Upon successful connection, the device emits an audible beep.
 

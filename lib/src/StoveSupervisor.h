@@ -14,14 +14,11 @@ struct StoveConfig {
 
 class StoveSupervisor {
 public:
-  using PowerOffCallback = void (*)();
-
   StoveSupervisor(StoveDial &dial, StoveController &controller,
                   ThermalController &thermal_controller, Beeper &beeper,
                   TrendAnalyzer &analyzer,
                   const StoveConfig &stove_config,
-                  const ThrottleConfig &throttle_config,
-                  PowerOffCallback power_off_cb);
+                  const ThrottleConfig &throttle_config);
   virtual ~StoveSupervisor() = default;
 
   void update();
@@ -43,11 +40,9 @@ private:
   TrendAnalyzer &analyzer_;
   const StoveConfig stove_config_;
   const ThrottleConfig throttle_config_;
-  PowerOffCallback power_off_cb_;
 
   State state_ = State::SCANNING;
   uint32_t state_entry_ms_ = 0;
-  uint32_t dial_off_start_ms_ = 0;
   float dial_target_temp_ = -1.0f;
   bool is_temp_low_ = false;
 };

@@ -14,7 +14,7 @@ The KRC Interposer is a smart hardware device that sits between an induction sto
 
 ## Hardware Platform
 - **Microcontroller:** Seeed Studio XIAO nRF52840.
-- **Power State:** The device is designed to be zero-power by default. It remains in deep sleep until the user triggers the stove's "Boil Mode" (dial turned physically below 0), which drops the dial resistance and triggers an `LPCOMP` hardware comparator to wake the XIAO.
+- **Power State:** The device is designed to be zero-power by default. The XIAO remains in deep sleep until the user triggers the stove's "Boil Mode" (dial turned physically below 0). The companion PIC microcontroller detects this condition via its ADC and begins sending UART telemetry, which wakes the XIAO via a UART RX start bit interrupt.
 - **Bypass Switch:** An internal state dictates who controls the stove, which is handled via passthrough control.
   - Passthrough Enabled: The physical dial is effectively connected directly to the stove (Pass-through mode). This is maintained during the `SCANNING` phase so the user can use the stove normally if a lid is not immediately found.
   - Passthrough Disabled: The XIAO's filtered PWM output via `StoveController` controls the stove (Active smart mode).
@@ -32,10 +32,10 @@ The firmware employs strict separation of concerns to allow native testing on ho
 
 ## State Machine Workflow
 1. **Sleep:** XIAO is powered off.
-2. **Wake:** Hardware comparator boots the device.
+2. **Wake:** UART RX activity from the PIC microcontroller wakes the device.
 3. **`SCANNING`:** Searching for BLE lid. Passthrough is enabled (stove functions normally).
-4. **`CONNECTED`:** Lid found. Passthrough is disabled (XIAO takes control). Beeps to accept. Target temperature is set via the 0-9 dial scale (mapped to 30°C - 120°C).
-5. **`ACTIVE`:** Normal PID regulation. If dial is turned to 0, a 5-second timeout starts. If 5s elapses, the device powers off entirely.
+4. **`CONNECTED`:** Lid found. Passthrough is disabled (XIAO takes control). Beeps to accept. Target temperature is set via the 0-9 dial scale (mapped to 30°C - 120°C). The device slews the throttle from 1.0 to minimum over 1 second before activating.
+5. **`ACTIVE`:** Normal PID regulation. Engages boost if temperature is > 20°C away from target, disengages when < 10°C away (hysteresis). If dial is turned to 0, a 5-second timeout starts. If 5s elapses, the device powers off entirely.
 6. **`DISCONNECTED`:** Lid signal lost for > 30s. Power drops to zero, beeps error. Recovers to `ACTIVE` if signal returns.
 
 ## Coding Style & Conventions
