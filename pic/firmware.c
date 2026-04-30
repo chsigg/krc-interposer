@@ -16,7 +16,7 @@
 
 // Clock Source: Internal Oscillator
 #pragma config FEXTOSC = OFF          // Disable external oscillator
-#pragma config RSTOSC = HFINTOSC_1MHZ // Use internal 1MHz oscillator
+#pragma config RSTOSC = HFINTOSC_1MHz // Use internal 1MHz oscillator
 #pragma config CLKOUTEN = OFF         // Disable clock out
 
 // Watchdog Timer: Enabled, ~256ms timeout
@@ -25,8 +25,8 @@
 #pragma config WDTCWS = WDTCWS_7 // Set WDT window to always open (100%)
 
 // Power-up and Code Protect
-#pragma config PWRTE = OFF      // Disable power-up timer
-#pragma config MCLRE = ON       // MCLR pin is master clear
+#pragma config PWRTS = PWRT_OFF // Disable power-up timer
+#pragma config MCLRE = EXTMCLR  // MCLR pin is master clear
 #pragma config CP = OFF         // Disable code memory protection
 #pragma config LVP = ON         // Enable low voltage programming
 #define _XTAL_FREQ 2000000      // 2 MHz CPU Clock
