@@ -63,7 +63,7 @@ uint8_t calculate_parity(uint8_t val) {
 // ==========================================
 void __interrupt() ISR(void) {
     // UART RX Interrupt
-    if (PIE3bits.RC1IE && PIR3bits.RC1IF) {
+    if (PIE4bits.RC1IE && PIR4bits.RC1IF) {
         uint8_t p_rx = RC1STAbits.RX9D;
         rx_byte = RC1REG; // Always read to clear flag
 
@@ -113,7 +113,7 @@ void init_hardware(void) {
     // UART TX Pin (RA0)
     WPUAbits.WPUA0 = 0;     // Disable Weak Pull-Up
     LATAbits.LATA0 = 0;     // Clear pin latch
-    ODCAbits.ODCA0 = 1;     // Open-Drain
+    ODCONAbits.ODCA0 = 1;     // Open-Drain
     TRISAbits.TRISA0 = 0;   // Output
 
     // UART RX Pin (RA1)
@@ -136,12 +136,12 @@ void init_hardware(void) {
     ADPCH = 0x04;           // Assuming channel 4 is RA4
 
     // DAC: 8-bit DAC
-    DAC1CON0bits.EN = 1;    // Enable DAC
+    DAC1CONbits.EN = 1;    // Enable DAC
 
     // Op-Amp (OPA1): Unity-gain buffer
     // Unity gain buffer. Input from DAC, Output to RA2
-    OPA1CON1bits.NCH = 0b001; // Negative input connects to OPA output (Unity)
-    OPA1CON1bits.PCH = 0b010; // Positive input connects to DAC1
+    OPA1CON2bits.NCH = 0b001; // Negative input connects to OPA output (Unity)
+    OPA1CON2bits.PCH = 0b010; // Positive input connects to DAC1
     OPA1CON0bits.EN  = 0;     // Initially disabled (Safety cutoff active)
 
     // UART: 9600 baud using 16-bit BRG
@@ -163,14 +163,14 @@ void init_hardware(void) {
     // ------------------------------------------
     // 4. Interrupt Configuration
     // ------------------------------------------
-    PIE3bits.RC1IE = 1;     // Enable UART RX interrupt
+    PIE4bits.RC1IE = 1;     // Enable UART RX interrupt
     INTCONbits.PEIE = 1;    // Enable peripheral interrupts
     INTCONbits.GIE = 1;     // Enable global interrupts
 
     // ------------------------------------------
     // 5. Timer1 Configuration (LFINTOSC for Sleep)
     // ------------------------------------------
-    OSCENbits.LFIOREN = 1;  // Enable LFINTOSC
+    OSCENbits.LFOEN = 1;  // Enable LFINTOSC
     T1CLK = 0x03;           // Select LFINTOSC as clock source
     T1CONbits.CKPS = 0b00;  // 1:1 Prescaler
     TMR1 = 65226;           // Load for 10ms overflow
@@ -220,7 +220,7 @@ int main(void) {
 
         if (rx_received || adc_value > WAKEUP_THRESHOLD) {
             rx_received = false;
-            while (!PIR3bits.TX1IF);
+            while (!PIR4bits.TX1IF);
             TX1STAbits.TX9D = calculate_parity(adc_value);
             TX1REG = adc_value; // Send ADC value
         }
@@ -242,7 +242,7 @@ int main(void) {
             }
         }
 
-        DAC1CON1 = output_val;
+        DAC1DATL = output_val;
         OPA1CON0bits.EN = output_val >= OFF_THRESHOLD;
 
         SLEEP();  // Sleep until Timer1 or UART RX interrupt
