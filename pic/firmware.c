@@ -4,6 +4,9 @@
  * communicates with a 3.3V master device via 9600 baud UART.
  *
  * Microcontroller: PIC16F17114, Compiler: XC8
+ * 
+ * xc8-cc.exe -mcpu=16F17114 -mdfp=Microchip.PIC16F1xxxx_DFP.1.30.457\xc8 \
+ *   -O2 firmware.c -o firmware.hex
  */
 
 #include <xc.h>
