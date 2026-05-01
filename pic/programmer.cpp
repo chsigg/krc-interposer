@@ -3,9 +3,16 @@
 #include "firmware_data.h"
 
 // Hardware Definitions
-const int PIN_MCLR = 5; 
-// SPI Pins (Standard nRF52840 SPI: SCK=13, MOSI=11, MISO=12)
-// Wire nRF MOSI directly to PIC ICSPDAT. Leave nRF MISO disconnected.
+const int PIN_MCLR = D10;
+const int PIN_ICSPDAT = D0;
+const int PIN_ICSPCLK = D1;
+const int PIN_MISO_UNUSED = D9; // Unused by ICSP but required by SPI driver
+
+// Internal pointer to the nRF SPIM register
+NRF_SPIM_Type* spim_reg = NRF_SPIM0;
+
+// Custom SPI instance for ICSP (PIC RA0/ICSPDAT <> XIAO D0, PIC RA1/ICSPCLK <> XIAO D1)
+SPIClass icspSPI(spim_reg, PIN_MISO_UNUSED, PIN_ICSPCLK, PIN_ICSPDAT);
 
 // Microchip ICSP Timing Specs (PIC16F17114)
 const uint32_t T_ENTH_US = 250;
@@ -16,14 +23,10 @@ const uint32_t T_PINT_MS = 3;  // 2.8ms max, rounded up
 // SPI settings (1 MHz, MSB first, Mode 1)
 SPISettings kIcspSettings(1000000, MSBFIRST, SPI_MODE1);
 
-// Internal pointer to the nRF SPIM register (Assuming NRF_SPIM2 is the default SPI)
-// If your core uses SPIM3, change this pointer.
-NRF_SPIM_Type* spim_reg = NRF_SPIM2; 
-
 // --- Core ICSP Primitives ---
 
 void sendCommand(uint8_t cmd) {
-    SPI.transfer(cmd);
+    icspSPI.transfer(cmd);
     delayMicroseconds(T_DLY_US);
 }
 
@@ -34,9 +37,9 @@ void sendPayload(uint16_t data) {
     uint8_t b2 = (data >> 7) & 0xFF;
     uint8_t b3 = (data << 1) & 0xFE;
 
-    SPI.transfer(b1);
-    SPI.transfer(b2);
-    SPI.transfer(b3);
+    icspSPI.transfer(b1);
+    icspSPI.transfer(b2);
+    icspSPI.transfer(b3);
     delayMicroseconds(T_DLY_US);
 }
 
@@ -48,9 +51,9 @@ uint16_t readPayload() {
     spim_reg->PSEL.TXD = 0xFFFFFFFF;
     
     // 3. Clock in 24 bits
-    uint8_t b1 = SPI.transfer(0x00);
-    uint8_t b2 = SPI.transfer(0x00);
-    uint8_t b3 = SPI.transfer(0x00);
+    uint8_t b1 = icspSPI.transfer(0x00);
+    uint8_t b2 = icspSPI.transfer(0x00);
+    uint8_t b3 = icspSPI.transfer(0x00);
     
     // 4. Reconnect MOSI
     spim_reg->PSEL.TXD = mosi_pin;
@@ -68,20 +71,20 @@ bool enterLvp() {
     digitalWrite(PIN_MCLR, LOW);
     delayMicroseconds(T_ENTH_US);
     
-    SPI.beginTransaction(kIcspSettings);
+    icspSPI.beginTransaction(kIcspSettings);
     
     // Shift in LVP Key: 0x4D434850
-    SPI.transfer(0x4D);
-    SPI.transfer(0x43);
-    SPI.transfer(0x48);
-    SPI.transfer(0x50);
+    icspSPI.transfer(0x4D);
+    icspSPI.transfer(0x43);
+    icspSPI.transfer(0x48);
+    icspSPI.transfer(0x50);
     
     delayMicroseconds(T_DLY_US);
     return true; // We assume success; verify will prove it
 }
 
 void exitLvp() {
-    SPI.endTransaction();
+    icspSPI.endTransaction();
     digitalWrite(PIN_MCLR, HIGH);
 }
 
@@ -145,7 +148,7 @@ void setup() {
     pinMode(PIN_MCLR, OUTPUT);
     digitalWrite(PIN_MCLR, HIGH); // Hold PIC in normal run mode
     
-    SPI.begin();
+    icspSPI.begin();
     
     Serial.println("Starting PIC LVP Programming Sequence...");
     
