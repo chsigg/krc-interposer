@@ -1,66 +1,101 @@
 #include <Arduino.h>
-#include <SPI.h>
+#include <Adafruit_TinyUSB.h>
 #include "firmware_data.h"
 
 // Hardware Definitions
 const int PIN_MCLR = D10;
 const int PIN_ICSPDAT = D0;
 const int PIN_ICSPCLK = D1;
-const int PIN_MISO_UNUSED = D9; // Unused by ICSP but required by SPI driver
-
-// Internal pointer to the nRF SPIM register
-NRF_SPIM_Type* spim_reg = NRF_SPIM0;
-
-// Custom SPI instance for ICSP (PIC RA0/ICSPDAT <> XIAO D0, PIC RA1/ICSPCLK <> XIAO D1)
-SPIClass icspSPI(spim_reg, PIN_MISO_UNUSED, PIN_ICSPCLK, PIN_ICSPDAT);
 
 // Microchip ICSP Timing Specs (PIC16F17114)
-const uint32_t T_ENTH_US = 250;
-const uint32_t T_DLY_US = 1;
-const uint32_t T_ERAB_MS = 9;  // 8.4ms max, rounded up
-const uint32_t T_PINT_MS = 3;  // 2.8ms max, rounded up
+const uint32_t T_ENTH_US = 500;
+const uint32_t T_DLY_US = 100;
+const uint32_t T_ERAB_MS = 15;
+const uint32_t T_PINT_MS = 10;
+const uint32_t T_CLOCK_US = 5;
 
-// SPI settings (1 MHz, MSB first, Mode 1)
-SPISettings kIcspSettings(1000000, MSBFIRST, SPI_MODE1);
+// --- Low-Level Bit-Bang Helpers ---
+
+// Explicit delays to satisfy PIC timing parameter constraints.
+inline void tickDelay() {
+    delayMicroseconds(T_CLOCK_US);
+}
+
+void bitBangWrite(uint32_t data, int numBits) {
+    // Set as output to drive the PIC
+    pinMode(PIN_ICSPDAT, OUTPUT);
+
+    // PIC Expects MSb First for command and payload data fields
+    for (int i = numBits - 1; i >= 0; i--) {
+        digitalWrite(PIN_ICSPDAT, (data >> i) & 0x01);
+
+        // Data changes on rising edge, latched on falling edge.
+        // Verified timing: PIC samples strictly during stable HIGH period.
+        tickDelay();
+        digitalWrite(PIN_ICSPCLK, HIGH);
+        tickDelay();
+        digitalWrite(PIN_ICSPCLK, LOW);
+    }
+
+    // Ensure line returns to safe state
+    digitalWrite(PIN_ICSPDAT, LOW);
+}
+
+uint32_t bitBangRead(int numBits) {
+    uint32_t val = 0;
+
+    // Set to high-impedance input to let the PIC drive
+    pinMode(PIN_ICSPDAT, INPUT);
+
+    // Extra explicit turnaround delay to ensure bus yields
+    delayMicroseconds(5);
+
+    for (int i = numBits - 1; i >= 0; i--) {
+        tickDelay();
+        digitalWrite(PIN_ICSPCLK, HIGH);
+
+        // Standard consensus: Sample strictly inside the HIGH clock phase.
+        // We delay slightly into the High phase to sample at dead-center stability.
+        tickDelay();
+
+        if (digitalRead(PIN_ICSPDAT)) {
+            val |= (1UL << i);
+        }
+
+        digitalWrite(PIN_ICSPCLK, LOW);
+    }
+
+    // Reclaim the line for subsequent commands
+    pinMode(PIN_ICSPDAT, OUTPUT);
+    digitalWrite(PIN_ICSPDAT, LOW);
+
+    return val;
+}
 
 // --- Core ICSP Primitives ---
 
 void sendCommand(uint8_t cmd) {
-    icspSPI.transfer(cmd);
+    bitBangWrite(cmd, 8);
     delayMicroseconds(T_DLY_US);
 }
 
 void sendPayload(uint16_t data) {
-    // 24-bit payload: [Start=0] [Pad=0x00] [Data 13:0] [Stop=0]
-    // Data is shifted left by 1 to make room for the Stop bit at bit 0.
-    uint8_t b1 = 0x00;
-    uint8_t b2 = (data >> 7) & 0xFF;
-    uint8_t b3 = (data << 1) & 0xFE;
+    // 24-bit frame: [Start=0 (bit 23)] [Pad=000000 (bits 22-17)] [Data=16 bits (bits 16-1)] [Stop=0 (bit 0)]
+    // The data is explicitly 16 bits, left-shifted by 1 to make space for the stop bit.
+    // This construction preserves Bit 15 of the address (e.g. 0x8000 range), which previous code truncated.
+    uint32_t frame = (static_cast<uint32_t>(data) & 0xFFFF) << 1;
 
-    icspSPI.transfer(b1);
-    icspSPI.transfer(b2);
-    icspSPI.transfer(b3);
+    bitBangWrite(frame, 24);
     delayMicroseconds(T_DLY_US);
 }
 
 uint16_t readPayload() {
-    // 1. Save the current MOSI pin mapping
-    uint32_t mosi_pin = spim_reg->PSEL.MOSI;
+    // Read 24-bit frame from the device
+    uint32_t frame = bitBangRead(24);
 
-    // 2. Disconnect MOSI so the PIC can drive the ICSPDAT line
-    spim_reg->PSEL.MOSI = 0xFFFFFFFF;
-
-    // 3. Clock in 24 bits
-    [[maybe_unused]]
-    uint8_t b1 = icspSPI.transfer(0x00);
-    uint8_t b2 = icspSPI.transfer(0x00);
-    uint8_t b3 = icspSPI.transfer(0x00);
-
-    // 4. Reconnect MOSI
-    spim_reg->PSEL.MOSI = mosi_pin;
-
-    // 5. Extract the 14-bit data (Discard start, stop, and pad bits)
-    uint16_t data = ((b2 & 0x7F) << 7) | (b3 >> 1);
+    // Extract the 16 bits contained in frame bits 16 through 1.
+    // The 14-bit payload is safely within these 16 bits.
+    uint16_t data = (frame >> 1) & 0xFFFF;
 
     delayMicroseconds(T_DLY_US);
     return data;
@@ -69,23 +104,26 @@ uint16_t readPayload() {
 // --- Programming State Machine ---
 
 bool enterLvp() {
+    digitalWrite(PIN_ICSPCLK, LOW);
+    digitalWrite(PIN_ICSPDAT, LOW);
+    pinMode(PIN_ICSPCLK, OUTPUT);
+    pinMode(PIN_ICSPDAT, OUTPUT);
+
+    // Ensure MCLR holds PIC in reset
     digitalWrite(PIN_MCLR, LOW);
     delayMicroseconds(T_ENTH_US);
 
-    icspSPI.beginTransaction(kIcspSettings);
-
-    // Shift in LVP Key: 0x4D434850
-    icspSPI.transfer(0x4D);
-    icspSPI.transfer(0x43);
-    icspSPI.transfer(0x48);
-    icspSPI.transfer(0x50);
+    // Shift in 32-bit LVP Key: 0x4D434850 strictly MSb First
+    bitBangWrite(0x4D, 8);
+    bitBangWrite(0x43, 8);
+    bitBangWrite(0x48, 8);
+    bitBangWrite(0x50, 8);
 
     delayMicroseconds(T_DLY_US);
-    return true; // We assume success; verify will prove it
+    return true;
 }
 
 void exitLvp() {
-    icspSPI.endTransaction();
     digitalWrite(PIN_MCLR, HIGH);
 }
 
@@ -94,29 +132,24 @@ void bulkErase() {
     sendPayload(0x0000);    // Point to Flash
 
     sendCommand(0x18);      // Bulk Erase
-    // Payload determines what to erase: Bit 1 = Flash, Bit 3 = Config
-    sendPayload(0x000A);
+    sendPayload(0x000A);    // Bit 1 = Flash, Bit 3 = Config
 
-    delay(T_ERAB_MS);        // Wait for erase to complete
+    delay(T_ERAB_MS);
 }
 
 void writeFlash() {
-    sendCommand(0x80);      // Load PC Address
-    sendPayload(0x0000);    // Start at 0x0000
+    sendCommand(0x80);
+    sendPayload(0x0000);
 
     for (uint32_t i = 0; i < firmware_words; i++) {
-        // Load data and increment PC. Use 0x00 for the last word of the row.
         uint8_t cmd = ((i + 1) % 32 == 0) ? 0x00 : 0x02;
-
         sendCommand(cmd);
         sendPayload(firmware_data[i]);
 
-        // If we hit the 32nd word, burn the row
         if ((i + 1) % 32 == 0) {
             sendCommand(0xE0); // Begin Internally Timed Programming
             delay(T_PINT_MS);
 
-            // Increment PC manually to next row if not at the very end
             if (i < firmware_words - 1) {
                 sendCommand(0xF8); // Increment Address
             }
@@ -125,8 +158,8 @@ void writeFlash() {
 }
 
 void verifyFlash() {
-    sendCommand(0x80);      // Load PC Address
-    sendPayload(0x0000);    // Start at 0x0000
+    sendCommand(0x80);
+    sendPayload(0x0000);
 
     for (uint32_t i = 0; i < firmware_words; i++) {
         sendCommand(0xFE);  // Read Data and Increment PC
@@ -149,7 +182,10 @@ void setup() {
     pinMode(PIN_MCLR, OUTPUT);
     digitalWrite(PIN_MCLR, HIGH); // Hold PIC in normal run mode
 
-    icspSPI.begin();
+    pinMode(PIN_ICSPCLK, OUTPUT);
+    digitalWrite(PIN_ICSPCLK, LOW);
+    pinMode(PIN_ICSPDAT, OUTPUT);
+    digitalWrite(PIN_ICSPDAT, LOW);
 
     Serial.println("Starting PIC LVP Programming Sequence...");
 
@@ -177,6 +213,7 @@ void setup() {
     verifyFlash();
 
     exitLvp();
+    Serial.println("Done.");
 }
 
 void loop() {
