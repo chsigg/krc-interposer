@@ -49,7 +49,7 @@
 // ==========================================
 volatile uint8_t rx_byte = PASSTHROUGH_BYTE;
 volatile bool rx_received = false;
-volatile uint16_t sw_watchdog = 0; // Counts 10ms ticks (200 ticks = 2 seconds)
+volatile uint8_t sw_watchdog = 0; // Counts 10ms ticks (fits in 8-bits atomically)
 
 // ==========================================
 // Helper Functions
@@ -65,15 +65,20 @@ uint8_t calculate_parity(uint8_t val) {
 // Interrupt Service Routine
 // ==========================================
 void __interrupt() ISR(void) {
-    // UART RX Interrupt
+    // UART Receive Logic
+    if (RC1STAbits.OERR) {
+        RC1STAbits.CREN = 0; // Reset module to clear overrun freeze
+        RC1STAbits.CREN = 1; 
+    }
+
     if (PIE4bits.RC1IE && PIR4bits.RC1IF) {
-        uint8_t p_rx = RC1STAbits.RX9D;
-        rx_byte = RC1REG; // Always read to clear flag
+        uint8_t p_rx = RC1STAbits.RX9D; // MUST read 9th bit BEFORE reading register
+        uint8_t temp_byte = RC1REG;     // Advance FIFO
 
-        uint8_t p_expected = calculate_parity(rx_byte);
-
-        if (p_rx == p_expected) {
-            sw_watchdog = 0;    // Reset SW WD on valid byte
+        // Isolated validation: only commit write if checksum matches
+        if (p_rx == calculate_parity(temp_byte)) {
+            rx_byte = temp_byte;
+            sw_watchdog = 0;    // Reset watchdog on strictly VALID bytes
             rx_received = true;
         }
     }
@@ -81,7 +86,12 @@ void __interrupt() ISR(void) {
     // Timer1 Interrupt (Wake from sleep)
     if (PIE1bits.TMR1IE && PIR1bits.TMR1IF) {
         PIR1bits.TMR1IF = 0; // Clear flag
-        TMR1 = 65226; // Reload for 10ms (65536 - 310)
+        TMR1 = 65226; // Reload for 10ms
+        
+        // Keep timing constant: increment only on Timer1, decouple from CPU sleep wakes
+        if (sw_watchdog < SOFTWARE_WDT_MAX_TICKS) {
+            ++sw_watchdog;
+        }
     }
 }
 
@@ -110,7 +120,8 @@ void init_hardware(void) {
     LATAbits.LATA5 = 0;     // Pre-set latch to 0 for when driven low
 
     // RA2 (Analog Out): Internal Op-Amp output
-    TRISAbits.TRISA2 = 0;   // Output
+    // Naturally defaults to HIGH-Z (TRISA2=1) on Power-On Reset.
+    // The dynamic controller in the main loop will take ownership when ready.
     ANSELAbits.ANSELA2 = 1; // Analog
 
     // UART TX Pin (RA0)
@@ -179,6 +190,10 @@ void init_hardware(void) {
     TMR1 = 65226;           // Load for 10ms overflow
     PIE1bits.TMR1IE = 1;    // Enable Timer1 interrupt
     T1CONbits.ON = 1;       // Start Timer1
+
+    // Configure SLEEP instruction to enter IDLE mode (CPU halted, peripherals active)
+    // to maintain HFINTOSC for continuous UART reception.
+    CPUDOZEbits.IDLEN = 1;
 }
 
 // ==========================================
@@ -215,10 +230,6 @@ int main(void) {
     while(1) {
         CLRWDT(); // Clear Hardware Watchdog Timer
 
-        if (sw_watchdog < SOFTWARE_WDT_MAX_TICKS) {
-            ++sw_watchdog;
-        }
-
         uint8_t adc_value = read_adc();
 
         if (rx_received || adc_value > WAKEUP_THRESHOLD) {
@@ -235,7 +246,7 @@ int main(void) {
         if (rx_byte == PASSTHROUGH_BYTE) {
             output_val = adc_value;
         } else if (sw_watchdog >= SOFTWARE_WDT_MAX_TICKS) {
-            output_val = OFF_THRESHOLD;
+            output_val = OFF_THRESHOLD; // Request user return to zero by maintaining floor drive
         } else {
             uint8_t target_val = MAX(rx_byte, MIN_OVERRIDE_VAL);
             if (target_val > output_val) {
@@ -246,7 +257,12 @@ int main(void) {
         }
 
         DAC1DATL = output_val;
-        OPA1CON0bits.EN = output_val >= OFF_THRESHOLD;
+        
+        // Dynamic High-Z Float Control:
+        // Enables Op-Amp when active, and reverts pin to HIGH-Z Input when inactive.
+        bool output_active = output_val >= OFF_THRESHOLD;
+        OPA1CON0bits.EN = output_active;
+        TRISAbits.TRISA2 = !output_active;
 
         SLEEP();  // Sleep until Timer1 or UART RX interrupt
     }
