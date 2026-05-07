@@ -32,7 +32,7 @@
 #pragma config MCLRE = EXTMCLR  // MCLR pin is master clear
 #pragma config CP = OFF         // Disable code memory protection
 #pragma config LVP = ON         // Enable low voltage programming
-#define _XTAL_FREQ 2000000      // 2 MHz CPU Clock
+#define _XTAL_FREQ 2000000      // 2 MHz CPU Clock (Verified real freq of OSCFRQ=0x01 per DS40002403)
 
 // Constants
 #define SOFTWARE_WDT_MAX_TICKS 200  // 2 seconds / 10ms loop
@@ -106,6 +106,14 @@ void init_hardware(void) {
     // Configure HFINTOSC to 2 MHz.
     OSCFRQ = 0x01;
 
+    // CRITICAL: Clear the postscaler divider (NDIV) loaded by RSTOSC configuration.
+    // Ensures Fosc runs exactly 1:1 to the 2 MHz frequency selected above.
+    OSCCON1bits.NDIV = 0x00;
+
+    // Wait for stability: Ensures the clock switch is committed and active
+    // before proceeding to initialize timing-sensitive peripherals like UART.
+    while (OSCCON3bits.ORDY == 0);
+
     // ------------------------------------------
     // 2. I/O Pin Configuration
     // ------------------------------------------
@@ -124,19 +132,21 @@ void init_hardware(void) {
     // The dynamic controller in the main loop will take ownership when ready.
     ANSELAbits.ANSELA2 = 1; // Analog
 
-    // UART TX Pin (RA0)
-    WPUAbits.WPUA0 = 0;     // Disable Weak Pull-Up
-    LATAbits.LATA0 = 0;     // Clear pin latch
-    ODCONAbits.ODCA0 = 1;     // Open-Drain
-    TRISAbits.TRISA0 = 0;   // Output
+    // UART TX Pin (RA1)
+    WPUAbits.WPUA1 = 0;     // Disable Weak Pull-Up
+    LATAbits.LATA1 = 0;     // Clear pin latch
+    ANSELAbits.ANSELA1 = 0; // Digital Mode
+    ODCONAbits.ODCA1 = 1;     // Open-Drain
+    TRISAbits.TRISA1 = 0;   // Output
 
-    // UART RX Pin (RA1)
-    TRISAbits.TRISA1 = 1;   // Input
-    ANSELAbits.ANSELA1 = 0; // Digital
+    // UART RX Pin (RA0)
+    TRISAbits.TRISA0 = 1;   // Input
+    ANSELAbits.ANSELA0 = 0; // Digital
 
     // Peripheral Pin Select (PPS)
-    RX1PPS = 0x01;          // Route RX to RA1
-    RA0PPS = 0x14;          // Route TX1 to RA0
+    RX1PPS = 0x00;          // Route RX to RA0
+    RA1PPS = 0x13;          // Route TX1 (0x13) to RA1
+    RA0PPS = 0x00;          // Clear legacy TX routing from RA0
 
     // ------------------------------------------
     // 3. Peripheral Configuration
@@ -264,7 +274,9 @@ int main(void) {
         OPA1CON0bits.EN = output_active;
         TRISAbits.TRISA2 = !output_active;
 
-        SLEEP();  // Sleep until Timer1 or UART RX interrupt
+        // SLEEP();  // DISABLED: Official Silicon Errata (DS80001011) recommends avoiding SLEEP()
+                   // due to wake-up instability on certain revisions. 
+                   // Keeping CPU continuously running for absolute reliable UART capture.
     }
 
     return 0;
