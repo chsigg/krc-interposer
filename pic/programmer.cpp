@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Adafruit_TinyUSB.h>
+#include <iterator>
 #include "firmware_data.h"
 
 // Hardware Definitions
@@ -21,12 +22,12 @@ inline void tickDelay() {
     delayMicroseconds(T_CLOCK_US);
 }
 
-void bitBangWrite(uint32_t data, int numBits) {
+void bitBangWrite(uint32_t data, int num_bits) {
     // Set as output to drive the PIC
     pinMode(PIN_ICSPDAT, OUTPUT);
 
     // PIC Expects MSb First for command and payload data fields
-    for (int i = numBits - 1; i >= 0; i--) {
+    for (int i = num_bits - 1; i >= 0; i--) {
         digitalWrite(PIN_ICSPDAT, (data >> i) & 0x01);
 
         // Data changes on rising edge, latched on falling edge.
@@ -41,7 +42,7 @@ void bitBangWrite(uint32_t data, int numBits) {
     digitalWrite(PIN_ICSPDAT, LOW);
 }
 
-uint32_t bitBangRead(int numBits) {
+uint32_t bitBangRead(int num_bits) {
     uint32_t val = 0;
 
     // Set to high-impedance input to let the PIC drive
@@ -50,7 +51,7 @@ uint32_t bitBangRead(int numBits) {
     // Extra explicit turnaround delay to ensure bus yields
     delayMicroseconds(5);
 
-    for (int i = numBits - 1; i >= 0; i--) {
+    for (int i = num_bits - 1; i >= 0; i--) {
         tickDelay();
         digitalWrite(PIN_ICSPCLK, HIGH);
 
@@ -137,40 +138,41 @@ void bulkErase() {
     delay(T_ERAB_MS);
 }
 
-void writeFlash() {
+void writeMemory(uint16_t start_addr, const uint16_t* data, size_t count, uint32_t row_size) {
     sendCommand(0x80);
-    sendPayload(0x0000);
+    sendPayload(start_addr);
 
-    for (uint32_t i = 0; i < firmware_words; i++) {
-        uint8_t cmd = ((i + 1) % 32 == 0) ? 0x00 : 0x02;
-        sendCommand(cmd);
-        sendPayload(firmware_data[i]);
+    for (size_t i = 0; i < count; i++) {
+        bool end_of_row = (i + 1) % row_size == 0;
+        sendCommand(end_of_row ? 0x00 : 0x02);
+        sendPayload(data[i]);
 
-        if ((i + 1) % 32 == 0) {
+        if (end_of_row) {
             sendCommand(0xE0); // Begin Internally Timed Programming
             delay(T_PINT_MS);
 
-            if (i < firmware_words - 1) {
+            if (i < count - 1) {
                 sendCommand(0xF8); // Increment Address
             }
         }
     }
 }
 
-void verifyFlash() {
+void verifyMemory(uint16_t start_addr, const uint16_t* data, size_t count) {
     sendCommand(0x80);
-    sendPayload(0x0000);
+    sendPayload(start_addr);
 
-    for (uint32_t i = 0; i < firmware_words; i++) {
+    for (size_t i = 0; i < count; i++) {
         sendCommand(0xFE);  // Read Data and Increment PC
-        uint16_t data = readPayload();
+        uint16_t read_val = readPayload();
+        uint16_t current_addr = start_addr + i;
 
-        if (data != firmware_data[i]) {
-            Serial.printf("Verify Failed at 0x%04X: Expected 0x%04X, Got 0x%04X\n", i, firmware_data[i], data);
+        if (read_val != data[i]) {
+            Serial.printf("Verify Failed at 0x%04X: Expected 0x%04X, Got 0x%04X\n", current_addr, data[i], read_val);
             return;
         }
     }
-    Serial.println("Verification Successful!");
+    Serial.printf("Verification Successful!\n");
 }
 
 // --- Arduino Framework ---
@@ -207,10 +209,16 @@ void setup() {
     bulkErase();
 
     Serial.println("Writing Flash...");
-    writeFlash();
+    writeMemory(0x0000, kProgramData, std::size(kProgramData), 32);
 
-    Serial.println("Verifying...");
-    verifyFlash();
+    Serial.println("Writing Config...");
+    writeMemory(0x8007, kConfigData, std::size(kConfigData), 1);
+
+    Serial.println("Verifying Flash...");
+    verifyMemory(0x0000, kProgramData, std::size(kProgramData));
+
+    Serial.println("Verifying Config...");
+    verifyMemory(0x8007, kConfigData, std::size(kConfigData));
 
     exitLvp();
     Serial.println("Done.");
