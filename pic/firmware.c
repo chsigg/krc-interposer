@@ -4,7 +4,7 @@
  * communicates with a 3.3V master device via 9600 baud UART.
  *
  * Microcontroller: PIC16F17114, Compiler: XC8
- * 
+ *
  * xc8-cc.exe -mcpu=16F17114 -mdfp=Microchip.PIC16F1xxxx_DFP.1.30.457\xc8 \
  *   -O2 firmware.c -o firmware.hex
  */
@@ -13,9 +13,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// ==========================================
+// ------------------------------------------
 // Hardware Configuration Bits
-// ==========================================
+// ------------------------------------------
 
 // Clock Source: Internal Oscillator
 #pragma config FEXTOSC = OFF          // Disable external oscillator
@@ -35,7 +35,7 @@
 #define _XTAL_FREQ 2000000      // 2 MHz CPU Clock (Verified real freq of OSCFRQ=0x01 per DS40002403)
 
 // Constants
-#define SOFTWARE_WDT_MAX_TICKS 200  // 2 seconds / 10ms loop
+#define SOFTWARE_WDT_MAX_TICKS 200  // 2 seconds / 10ms loops
 #define PASSTHROUGH_BYTE       0x00
 #define OFF_THRESHOLD          5
 #define MIN_OVERRIDE_VAL       25
@@ -44,16 +44,18 @@
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
-// ==========================================
-// Global Variables
-// ==========================================
-volatile uint8_t rx_byte = PASSTHROUGH_BYTE;
-volatile bool rx_received = false;
-volatile uint8_t sw_watchdog = 0; // Counts 10ms ticks (fits in 8-bits atomically)
+// ------------------------------------------
+// Persistent System State
+// ------------------------------------------
+static uint8_t rx_byte = PASSTHROUGH_BYTE; // Latest valid command byte from Master
+static uint8_t current_adc = 0;           // Most recent processed analog sample
+static uint8_t output_val = 0;            // Dynamic smoothed actuator level
+static uint8_t sw_watchdog = 0;           // Interval tracker since last Master packet
 
-// ==========================================
-// Helper Functions
-// ==========================================
+// ------------------------------------------
+// Computes parity bit for validation of communication payloads.
+// Iteratively XORs byte down to a single bit resolution.
+// ------------------------------------------
 uint8_t calculate_parity(uint8_t val) {
     val ^= val >> 4;
     val ^= val >> 2;
@@ -61,224 +63,201 @@ uint8_t calculate_parity(uint8_t val) {
     return val & 1;
 }
 
-// ==========================================
-// Interrupt Service Routine
-// ==========================================
-void __interrupt() ISR(void) {
-    // UART Receive Logic
+// ------------------------------------------
+// Checks for available byte in the receive queue.
+// Exits non-blocking if no data is present to keep main loop agile.
+// ------------------------------------------
+bool check_uart_polled(void) {
+    // Clear hardware freeze on detected serial buffer collisions
     if (RC1STAbits.OERR) {
-        RC1STAbits.CREN = 0; // Reset module to clear overrun freeze
-        RC1STAbits.CREN = 1; 
+        RC1STAbits.CREN = 0;
+        RC1STAbits.CREN = 1;
     }
 
-    if (PIE4bits.RC1IE && PIR4bits.RC1IF) {
-        uint8_t p_rx = RC1STAbits.RX9D; // MUST read 9th bit BEFORE reading register
-        uint8_t temp_byte = RC1REG;     // Advance FIFO
-
-        // Isolated validation: only commit write if checksum matches
-        if (p_rx == calculate_parity(temp_byte)) {
-            rx_byte = temp_byte;
-            sw_watchdog = 0;    // Reset watchdog on strictly VALID bytes
-            rx_received = true;
-        }
+    // Early return: Nothing to process in the FIFO right now
+    if (!PIR4bits.RC1IF) {
+        return false;
     }
 
-    // Timer1 Interrupt (Wake from sleep)
-    if (PIE1bits.TMR1IE && PIR1bits.TMR1IF) {
-        PIR1bits.TMR1IF = 0; // Clear flag
-        TMR1 = 65226; // Reload for 10ms
-        
-        // Keep timing constant: increment only on Timer1, decouple from CPU sleep wakes
-        if (sw_watchdog < SOFTWARE_WDT_MAX_TICKS) {
-            ++sw_watchdog;
-        }
+    uint8_t p_rx = RC1STAbits.RX9D;
+    uint8_t temp_byte = RC1REG;
+
+    // Silently discard mathematically corrupted frames
+    if (p_rx != calculate_parity(temp_byte)) {
+        return false;
+    }
+
+    // Commit and kick state variables
+    rx_byte = temp_byte;
+    sw_watchdog = 0;
+    return true;
+}
+
+// ------------------------------------------
+// Broadcasts current sensor telemetry via UART to master device.
+// Employs blocking clearance checks prior to populating registers.
+// ------------------------------------------
+void send_telemetry(void) {
+    // Non-flooding execution: only waits briefly for outbound slot clearance
+    while (!PIR4bits.TX1IF);
+
+    TX1STAbits.TX9D = calculate_parity(current_adc);
+    TX1REG = current_adc;
+}
+
+// ------------------------------------------
+// Transmits resolved target level into the DAC output stage.
+// Includes gate monitoring to enforce absolute zero-cutoff limits.
+// ------------------------------------------
+void update_actuator(void) {
+    DAC1DATL = output_val;
+
+    // Dynamic High-Z Float Control:
+    // Force absolute cutoff if commanded below active floor, saving stove interlock faulting
+    bool output_active = (output_val >= OFF_THRESHOLD);
+    OPA1CON0bits.EN = output_active;
+    TRISAbits.TRISA2 = !output_active;
+}
+
+// ------------------------------------------
+// Determines output level based on operating state.
+// Structured with flattened guard clauses for maintenance transparency.
+// ------------------------------------------
+void process_safety_ramps(void) {
+    // Priority 1: Passthrough Mode requested by Master.
+    // (Explicitly allowed before Watchdog to preserve User Manual Control capabilities).
+    if (rx_byte == PASSTHROUGH_BYTE) {
+        output_val = current_adc;
+        return;
+    }
+
+    // Priority 2: Safety Inactivity Cutoff.
+    if (sw_watchdog >= SOFTWARE_WDT_MAX_TICKS) {
+        output_val = OFF_THRESHOLD;
+        return;
+    }
+
+    // Priority 3: PID Active Override.
+    // Incrementally steps toward sanitized target to enforce slew rate limits.
+    uint8_t target_val = MAX(rx_byte, MIN_OVERRIDE_VAL);
+
+    if (target_val > output_val) {
+        output_val += MIN(target_val - output_val, 3);
+        return;
+    }
+
+    if (target_val < output_val) {
+        output_val -= MIN(output_val - target_val, 3);
+        return;
     }
 }
 
-// ==========================================
-// Hardware Initialization
-// ==========================================
+// ------------------------------------------
+// Hardware configuration initialization.
+// ------------------------------------------
 void init_hardware(void) {
-    // ------------------------------------------
-    // 1. Clock Configuration
-    // ------------------------------------------
-
-    // Configure HFINTOSC to 2 MHz.
+    // 1. System Clock (2 MHz Internals)
     OSCFRQ = 0x01;
+    OSCCON1bits = (OSCCON1bits_t){ .NOSC = 0b110, .NDIV = 0x00 }; // HFINTOSC, Div 1:1
+    volatile uint16_t osc_timeout = 1000;
+    while (OSCCON3bits.ORDY == 0 && --osc_timeout > 0);
 
-    // CRITICAL: Clear the postscaler divider (NDIV) loaded by RSTOSC configuration.
-    // Ensures Fosc runs exactly 1:1 to the 2 MHz frequency selected above.
-    OSCCON1bits.NDIV = 0x00;
+    // 2. Pin Configuration
+    ANSELAbits = (ANSELAbits_t){ .ANSELA0=0, .ANSELA1=0, .ANSELA2=1, .ANSELA4=1, .ANSELA5=0 };
+    TRISAbits = (TRISAbits_t){ .TRISA0=1, .TRISA1=0, .TRISA2=1, .TRISA4=1, .TRISA5=1 };
+    LATAbits = (LATAbits_t){ .LATA1=0, .LATA5=0 };
+    WPUAbits = (WPUAbits_t){ .WPUA1=0 };
+    ODCONAbits = (ODCONAbits_t){ .ODCA1=1 };
 
-    // Wait for stability: Ensures the clock switch is committed and active
-    // before proceeding to initialize timing-sensitive peripherals like UART.
-    while (OSCCON3bits.ORDY == 0);
+    RX1PPS = 0x00;
+    RA1PPS = 0x13;
+    RA0PPS = 0x00;
 
-    // ------------------------------------------
-    // 2. I/O Pin Configuration
-    // ------------------------------------------
+    // 3. Peripheral Engine Enables
+    ADCON0bits = (ADCON0bits_t){ .CS=1, .FM=0b01 }; // Sets ON=0
+    ADPCH = 0x04;          // Channel Select RA4
+    DAC1CONbits = (DAC1CONbits_t){ .EN = 1 };
+    OPA1CON2bits = (OPA1CON2bits_t){ .NCH = 0b001, .PCH = 0b010 };
+    OPA1CON0bits = (OPA1CON0bits_t){ .EN = 0 };
 
-    // RA4 (Analog In): wiper of physical dial
-    TRISAbits.TRISA4 = 1;   // Input
-    ANSELAbits.ANSELA4 = 1; // Analog
-
-    // RA5 (Dial Low-Side Switch): Acts as ground path
-    TRISAbits.TRISA5 = 1;   // High-Z
-    ANSELAbits.ANSELA5 = 0; // Digital
-    LATAbits.LATA5 = 0;     // Pre-set latch to 0 for when driven low
-
-    // RA2 (Analog Out): Internal Op-Amp output
-    // Naturally defaults to HIGH-Z (TRISA2=1) on Power-On Reset.
-    // The dynamic controller in the main loop will take ownership when ready.
-    ANSELAbits.ANSELA2 = 1; // Analog
-
-    // UART TX Pin (RA1)
-    WPUAbits.WPUA1 = 0;     // Disable Weak Pull-Up
-    LATAbits.LATA1 = 0;     // Clear pin latch
-    ANSELAbits.ANSELA1 = 0; // Digital Mode
-    ODCONAbits.ODCA1 = 1;     // Open-Drain
-    TRISAbits.TRISA1 = 0;   // Output
-
-    // UART RX Pin (RA0)
-    TRISAbits.TRISA0 = 1;   // Input
-    ANSELAbits.ANSELA0 = 0; // Digital
-
-    // Peripheral Pin Select (PPS)
-    RX1PPS = 0x00;          // Route RX to RA0
-    RA1PPS = 0x13;          // Route TX1 (0x13) to RA1
-    RA0PPS = 0x00;          // Clear legacy TX routing from RA0
-
-    // ------------------------------------------
-    // 3. Peripheral Configuration
-    // ------------------------------------------
-
-    // ADC (ADCC): 12-bit ADC
-    ADCON0bits.ON = 1;      // Enable ADC
-    ADCON0bits.CS = 1;      // ADCRC clock source
-    ADCON0bits.FM = 1;      // Right justified result
-    // Select channel RA4 (ADPCH register usage depends on exact device)
-    ADPCH = 0x04;           // Assuming channel 4 is RA4
-
-    // DAC: 8-bit DAC
-    DAC1CONbits.EN = 1;    // Enable DAC
-
-    // Op-Amp (OPA1): Unity-gain buffer
-    // Unity gain buffer. Input from DAC, Output to RA2
-    OPA1CON2bits.NCH = 0b001; // Negative input connects to OPA output (Unity)
-    OPA1CON2bits.PCH = 0b010; // Positive input connects to DAC1
-    OPA1CON0bits.EN  = 0;     // Initially disabled (Safety cutoff active)
-
-    // UART: 9600 baud using 16-bit BRG
-    // Baud = Fosc / (4 * (SPBRG + 1)) when BRG16=1 and BRGH=1
-    // SPBRG = (2000000 / (4 * 9600)) - 1 = 51.08 -> 51
-    BAUD1CONbits.BRG16 = 1;
-    TX1STAbits.BRGH = 1;
+    // 4. 9600 Baud Generator Configuration
+    BAUD1CONbits = (BAUD1CONbits_t){ .BRG16 = 1 };
+    TX1STAbits = (TX1STAbits_t){ .TXEN=1, .BRGH=1, .TX9=1 };
+    RC1STAbits = (RC1STAbits_t){ .SPEN=1, .CREN=1, .RX9=1 };
     SP1BRGL = 51;
     SP1BRGH = 0;
 
-    // Configure for 9-bit mode (used for software parity)
-    TX1STAbits.TX9 = 1;  // Enable 9-bit transmission
-    RC1STAbits.RX9 = 1;  // Enable 9-bit reception
+    // 5. Timer2 Period Configuration (Deterministic Hardware Counter)
+    T2CLKCON = 0x01;       // Source: Fosc/4 (500 kHz hardware resolution)
+    T2PR = 249;            // Period match = 250 counts
+    T2CONbits = (T2CONbits_t){ .ON=1, .CKPS=0b010, .OUTPS=0b0100 };
 
-    TX1STAbits.TXEN = 1;    // Enable transmitter
-    RC1STAbits.CREN = 1;    // Enable continuous receive
-    RC1STAbits.SPEN = 1;    // Enable serial port
-
-    // ------------------------------------------
-    // 4. Interrupt Configuration
-    // ------------------------------------------
-    PIE4bits.RC1IE = 1;     // Enable UART RX interrupt
-    INTCONbits.PEIE = 1;    // Enable peripheral interrupts
-    INTCONbits.GIE = 1;     // Enable global interrupts
-
-    // ------------------------------------------
-    // 5. Timer1 Configuration (LFINTOSC for Sleep)
-    // ------------------------------------------
-    OSCENbits.LFOEN = 1;  // Enable LFINTOSC
-    T1CLK = 0x03;           // Select LFINTOSC as clock source
-    T1CONbits.CKPS = 0b00;  // 1:1 Prescaler
-    TMR1 = 65226;           // Load for 10ms overflow
-    PIE1bits.TMR1IE = 1;    // Enable Timer1 interrupt
-    T1CONbits.ON = 1;       // Start Timer1
-
-    // Configure SLEEP instruction to enter IDLE mode (CPU halted, peripherals active)
-    // to maintain HFINTOSC for continuous UART reception.
-    CPUDOZEbits.IDLEN = 1;
+    // 6. Ensure all interrupts are disabled at controller and peripheral levels
+    INTCONbits = (INTCONbits_t){ .GIE = 0, .PEIE = 0 };
+    PIE4bits = (PIE4bits_t){ .RC1IE = 0 };
+    PIE2bits = (PIE2bits_t){ .TMR2IE = 0 };
 }
 
-// ==========================================
-// ADC Measurement Function
-// ==========================================
+// ------------------------------------------
+// Synchronous active measurement routine with dynamic power gating.
+// ------------------------------------------
 uint8_t read_adc(void) {
-    // 1. Configure RA5 as output and drive it LOW
+    ADCON0bits.ON = 1;
     TRISAbits.TRISA5 = 0;
+    __delay_us(50); // Settle rails
 
-    // 2. Wait brief settling period (50us)
-    __delay_us(50);
-
-    // 3. Trigger ADC conversion
     ADCON0bits.GO = 1;
-    while (ADCON0bits.GO); // Wait for completion
+    volatile uint16_t adc_timeout = 1000;
+    while (ADCON0bits.GO && --adc_timeout > 0);
 
-    // Scale 12-bit result to 8-bit (0-255)
-    uint8_t scaled_adc = (uint8_t)(ADRES >> 4);
+    uint8_t res = (adc_timeout > 0) ? (uint8_t)(ADRES >> 4) : 0;
 
-    // 4. Configure RA5 as Input (High-Z) to cut power
     TRISAbits.TRISA5 = 1;
-
-    return scaled_adc;
+    ADCON0bits.ON = 0; // Return to zero-draw state
+    return res;
 }
 
-// ==========================================
-// Main Program
-// ==========================================
+// ------------------------------------------
+// Main Loop
+// ------------------------------------------
 int main(void) {
     init_hardware();
 
-    uint8_t output_val = 0;
+    current_adc = read_adc();  // Initialize ADC reading.
 
-    while(1) {
-        CLRWDT(); // Clear Hardware Watchdog Timer
+    while (1) {
+        CLRWDT();
 
-        uint8_t adc_value = read_adc();
-
-        if (rx_received || adc_value > WAKEUP_THRESHOLD) {
-            rx_received = false;
-            while (!PIR4bits.TX1IF);
-            TX1STAbits.TX9D = calculate_parity(adc_value);
-            TX1REG = adc_value; // Send ADC value
+        // Check for received packets from master
+        bool msg_arrived = check_uart_polled();
+        if (msg_arrived) {
+            send_telemetry();
         }
 
-        if (adc_value < OFF_THRESHOLD) {
+        if (!PIR2bits.TMR2IF) {
+            continue;  // Wait for 10ms interval match flag
+        }
+        PIR2bits.TMR2IF = 0;
+
+        current_adc = read_adc();
+
+        // Switch to passthrough if knob is in Off position.
+        if (current_adc < OFF_THRESHOLD) {
             rx_byte = PASSTHROUGH_BYTE;
         }
 
-        if (rx_byte == PASSTHROUGH_BYTE) {
-            output_val = adc_value;
-        } else if (sw_watchdog >= SOFTWARE_WDT_MAX_TICKS) {
-            output_val = OFF_THRESHOLD; // Request user return to zero by maintaining floor drive
-        } else {
-            uint8_t target_val = MAX(rx_byte, MIN_OVERRIDE_VAL);
-            if (target_val > output_val) {
-                    output_val += MIN(target_val - output_val, 3);
-            } else if (target_val < output_val) {
-                    output_val -= MIN(output_val - target_val, 3);
-            }
+        // Wake up master if ADC reading is high (boil trigger engaged).
+        if (!msg_arrived && current_adc > WAKEUP_THRESHOLD) {
+            send_telemetry();
         }
 
-        DAC1DATL = output_val;
-        
-        // Dynamic High-Z Float Control:
-        // Enables Op-Amp when active, and reverts pin to HIGH-Z Input when inactive.
-        bool output_active = output_val >= OFF_THRESHOLD;
-        OPA1CON0bits.EN = output_active;
-        TRISAbits.TRISA2 = !output_active;
+        // Update output target and set op-amp level.
+        process_safety_ramps();
+        update_actuator();
 
-        // SLEEP();  // DISABLED: Official Silicon Errata (DS80001011) recommends avoiding SLEEP()
-                   // due to wake-up instability on certain revisions. 
-                   // Keeping CPU continuously running for absolute reliable UART capture.
+        if (sw_watchdog < SOFTWARE_WDT_MAX_TICKS) {
+            sw_watchdog++;
+        }
     }
-
     return 0;
 }
-
