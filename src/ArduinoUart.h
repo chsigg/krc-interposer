@@ -14,7 +14,12 @@ public:
     Serial1.begin(9600, SERIAL_8E1); // 8 data bits, Even parity, 1 stop bit
 
     // Enable the internal 3.3V pull-up on RX pin to match the PIC's open-drain 5V TX pin.
-    nrf_gpio_cfg_input(g_ADigitalPinMap[rx_pin_], NRF_GPIO_PIN_PULLUP);
+    pinMode(rx_pin_, INPUT_PULLUP);
+  }
+
+  void end() {
+    Serial1.flush();
+    Serial1.end();
   }
 
   void update() {

@@ -18,10 +18,10 @@
 
 void delayUs(uint32_t us) { delayMicroseconds(us); }
 
+constexpr int kUartTxPin = D0;
+constexpr int kUartRxPin = D1;
 constexpr int kBuzzerPPin = A2;
 constexpr int kBuzzerNPin = A3;
-constexpr int kUartRxPin = D1;
-constexpr int kUartTxPin = D0;
 
 static void shutdown();
 
@@ -64,8 +64,8 @@ BleTelemetry telemetry(thermal_controller, analyzer, buffered_logger);
 
 // Supervisor (bypassing is handled internally by uart)
 StoveConfig stove_config;
-StoveSupervisor supervisor(dial, controller, thermal_controller, beeper, analyzer,
-                           stove_config, throttle_config);
+StoveSupervisor supervisor(dial, controller, thermal_controller, beeper,
+                           analyzer, stove_config, throttle_config);
 
 void setup() {
   uart.begin();
@@ -122,6 +122,7 @@ void loop() {
 }
 
 static void shutdown() {
+  red_led.set(1.0f);
   beeper.beep(Beeper::Signal::POWER_OFF);
   while (!beeper.isIdle()) {
     delay(10);
@@ -133,11 +134,10 @@ static void shutdown() {
   thermometer.end();
   telemetry.update();
   telemetry.end();
+  uart.end();
 
   Serial.flush();
   Serial.end();
-  Serial1.flush();
-  Serial1.end();
 
   for (auto pwm : {NRF_PWM0, NRF_PWM1, NRF_PWM2, NRF_PWM3}) {
     nrf_pwm_disable(pwm);
@@ -145,12 +145,12 @@ static void shutdown() {
   for (int pin : {kBuzzerPPin, kBuzzerNPin}) {
     pinMode(pin, INPUT_PULLDOWN);
   }
-  for (int pin : {LED_RED, LED_GREEN, LED_BLUE}) {
+  for (int pin : {kUartTxPin, LED_RED, LED_GREEN, LED_BLUE}) {
     pinMode(pin, INPUT_PULLUP);
   }
 
   // Set up System OFF Boot trigger based on UART RX Start Bit (High-to-Low)
-  nrf_gpio_cfg_sense_input(g_ADigitalPinMap[kUartRxPin], NRF_GPIO_PIN_PULLUP, NRF_GPIO_PIN_SENSE_LOW);
+  nrf_gpio_cfg_sense_input(g_ADigitalPinMap[kUartRxPin], NRF_GPIO_PIN_PULLUP,
+                           NRF_GPIO_PIN_SENSE_LOW);
   sd_power_system_off();
 }
-
