@@ -74,16 +74,17 @@ bool check_uart_polled(void) {
         RC1STAbits.CREN = 1;
     }
 
-    // Early return: Nothing to process in the FIFO right now
+    // Early return on empty FIFO.
     if (!PIR4bits.RC1IF) {
         return false;
     }
 
+    bool err_frame = RC1STAbits.FERR;
     uint8_t p_rx = RC1STAbits.RX9D;
     uint8_t temp_byte = RC1REG;
 
-    // Silently discard mathematically corrupted frames
-    if (p_rx != calculate_parity(temp_byte)) {
+    // Silently discard corrupted frames.
+    if (err_frame || p_rx != calculate_parity(temp_byte)) {
         return false;
     }
 
