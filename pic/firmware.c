@@ -114,7 +114,8 @@ void update_actuator(void) {
     DAC1DATL = output_val;
 
     // High-Z float if level is below threshold, just like the real knob.
-    OPA1CON0bits.EN = output_val >= OFF_THRESHOLD;
+    DAC1CONbits.OE1 = output_val >= OFF_THRESHOLD;
+    DAC1CONbits.REFRNG = output_val >= 128;
 }
 
 // ------------------------------------------
@@ -173,10 +174,8 @@ void init_hardware(void) {
 
     // 3. Peripheral Engine Enables
     ADCON0bits = (ADCON0bits_t){ .CS=1, .FM=0b01 }; // Sets ON=0
-    ADPCH = 0x04;          // Channel Select RA4
-    DAC1CONbits = (DAC1CONbits_t){ .EN = 1 };
-    OPA1CON2bits = (OPA1CON2bits_t){ .NCH = 0b001, .PCH = 0b001 };
-    OPA1CON0bits = (OPA1CON0bits_t){ .EN = 0, .UG = 1, .CPON = 1 };
+    ADPCHbits = (ADPCHbits_t){ .PCH2=1 }; // Channel Select RA4
+    DAC1CONbits = (DAC1CONbits_t){ .EN=1 };
 
     // 4. 9600 Baud Generator Configuration
     BAUD1CONbits = (BAUD1CONbits_t){ .BRG16 = 1 };
