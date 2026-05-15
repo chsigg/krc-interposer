@@ -32,7 +32,7 @@
 #pragma config MCLRE = EXTMCLR  // MCLR pin is master clear
 #pragma config CP = OFF         // Disable code memory protection
 #pragma config LVP = ON         // Enable low voltage programming
-#define _XTAL_FREQ 2000000      // 2 MHz CPU Clock (Verified real freq of OSCFRQ=0x01 per DS40002403)
+#define _XTAL_FREQ 500000       // 500 kHz CPU Clock
 
 // Constants
 #define SOFTWARE_WDT_MAX_TICKS 200  // 2 seconds / 10ms loops
@@ -113,11 +113,8 @@ void send_telemetry(void) {
 void update_actuator(void) {
     DAC1DATL = output_val;
 
-    // Dynamic High-Z Float Control:
-    // Force absolute cutoff if commanded below active floor, saving stove interlock faulting
-    bool output_active = (output_val >= OFF_THRESHOLD);
-    OPA1CON0bits.EN = output_active;
-    TRISAbits.TRISA2 = !output_active;
+    // High-Z float if level is below threshold, just like the real knob.
+    OPA1CON0bits.EN = output_val >= OFF_THRESHOLD;
 }
 
 // ------------------------------------------
@@ -157,9 +154,9 @@ void process_safety_ramps(void) {
 // Hardware configuration initialization.
 // ------------------------------------------
 void init_hardware(void) {
-    // 1. System Clock (2 MHz Internals)
-    OSCFRQ = 0x01;
-    OSCCON1bits = (OSCCON1bits_t){ .NOSC = 0b110, .NDIV = 0x00 }; // HFINTOSC, Div 1:1
+    // 1. System Clock (500 kHz Internals)
+    OSCFRQ = 0x00;
+    OSCCON1bits = (OSCCON1bits_t){ .NOSC = 0b110, .NDIV = 0x01 }; // HFINTOSC, Div 1:2
     volatile uint16_t osc_timeout = 1000;
     while (OSCCON3bits.ORDY == 0 && --osc_timeout > 0);
 
@@ -178,20 +175,20 @@ void init_hardware(void) {
     ADCON0bits = (ADCON0bits_t){ .CS=1, .FM=0b01 }; // Sets ON=0
     ADPCH = 0x04;          // Channel Select RA4
     DAC1CONbits = (DAC1CONbits_t){ .EN = 1 };
-    OPA1CON2bits = (OPA1CON2bits_t){ .NCH = 0b001, .PCH = 0b010 };
-    OPA1CON0bits = (OPA1CON0bits_t){ .EN = 0 };
+    OPA1CON2bits = (OPA1CON2bits_t){ .NCH = 0b001, .PCH = 0b001 };
+    OPA1CON0bits = (OPA1CON0bits_t){ .EN = 0, .UG = 1, .CPON = 1 };
 
     // 4. 9600 Baud Generator Configuration
     BAUD1CONbits = (BAUD1CONbits_t){ .BRG16 = 1 };
     TX1STAbits = (TX1STAbits_t){ .TXEN=1, .BRGH=1, .TX9=1 };
     RC1STAbits = (RC1STAbits_t){ .SPEN=1, .CREN=1, .RX9=1 };
-    SP1BRGL = 51;
+    SP1BRGL = 12;
     SP1BRGH = 0;
 
     // 5. Timer2 Period Configuration (Deterministic Hardware Counter)
-    T2CLKCON = 0x01;       // Source: Fosc/4 (500 kHz hardware resolution)
+    T2CLKCON = 0x01;       // Source: Fosc/4 (125 kHz hardware resolution)
     T2PR = 249;            // Period match = 250 counts
-    T2CONbits = (T2CONbits_t){ .ON=1, .CKPS=0b010, .OUTPS=0b0100 };
+    T2CONbits = (T2CONbits_t){ .ON=1, .CKPS=0b000, .OUTPS=0b0100 };
 
     // 6. Ensure all interrupts are disabled at controller and peripheral levels
     INTCONbits = (INTCONbits_t){ .GIE = 0, .PEIE = 0 };
