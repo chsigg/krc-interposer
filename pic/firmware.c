@@ -189,10 +189,11 @@ void init_hardware(void) {
     T2PR = 249;            // Period match = 250 counts
     T2CONbits = (T2CONbits_t){ .ON=1, .CKPS=0b000, .OUTPS=0b0100 };
 
-    // 6. Ensure all interrupts are disabled at controller and peripheral levels
-    INTCONbits = (INTCONbits_t){ .GIE = 0, .PEIE = 0 };
-    PIE4bits = (PIE4bits_t){ .RC1IE = 0 };
-    PIE2bits = (PIE2bits_t){ .TMR2IE = 0 };
+    // 6. Configure interrupts for IDLE mode wake-up (GIE must remain 0)
+    CPUDOZEbits.IDLEN = 1; // SLEEP instruction enters IDLE instead of Deep Sleep
+    INTCONbits = (INTCONbits_t){ .GIE = 0, .PEIE = 1 };
+    PIE4bits = (PIE4bits_t){ .RC1IE = 1 };
+    PIE2bits = (PIE2bits_t){ .TMR2IE = 1 };
 }
 
 // ------------------------------------------
@@ -231,30 +232,33 @@ int main(void) {
             send_telemetry();
         }
 
-        if (!PIR2bits.TMR2IF) {
-            continue;  // Wait for 10ms interval match flag
+        // Process 10ms tasks if Timer2 overflowed
+        if (PIR2bits.TMR2IF) {
+            PIR2bits.TMR2IF = 0;
+
+            current_adc = read_adc();
+
+            // Switch to passthrough if knob is in Off position.
+            if (current_adc < OFF_THRESHOLD) {
+                rx_byte = PASSTHROUGH_BYTE;
+            }
+
+            // Wake up master if ADC reading is high (boil trigger engaged).
+            if (!msg_arrived && current_adc > WAKEUP_THRESHOLD) {
+                send_telemetry();
+            }
+
+            // Update output target and set op-amp level.
+            process_safety_ramps();
+            update_actuator();
+
+            if (sw_watchdog < SOFTWARE_WDT_MAX_TICKS) {
+                sw_watchdog++;
+            }
         }
-        PIR2bits.TMR2IF = 0;
 
-        current_adc = read_adc();
-
-        // Switch to passthrough if knob is in Off position.
-        if (current_adc < OFF_THRESHOLD) {
-            rx_byte = PASSTHROUGH_BYTE;
-        }
-
-        // Wake up master if ADC reading is high (boil trigger engaged).
-        if (!msg_arrived && current_adc > WAKEUP_THRESHOLD) {
-            send_telemetry();
-        }
-
-        // Update output target and set op-amp level.
-        process_safety_ramps();
-        update_actuator();
-
-        if (sw_watchdog < SOFTWARE_WDT_MAX_TICKS) {
-            sw_watchdog++;
-        }
+        // Sleep until Timer2 period match or UART RX byte received
+        SLEEP();
     }
     return 0;
 }
