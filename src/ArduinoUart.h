@@ -23,21 +23,15 @@ public:
   }
 
   void update() {
-    // 1. Send request/command to PIC
-    uint8_t tx = std::clamp<int>(tx_value_ * 255, 0, 255);
-    Serial1.write(tx);
-
-    // 2. Wait for response (with a short timeout)
-    uint32_t start_ms = millis();
-    while (Serial1.available() == 0 && millis() - start_ms < 10) {
-      // Wait up to 10ms for response
-    }
-
-    // 3. Read response if available
+    // 1. Read response from the PREVIOUS transaction (already in hardware FIFO)
     if (Serial1.available() > 0) {
       uint8_t rx = Serial1.read();
       rx_value_ = rx * (1.0f / 255);
     }
+
+    // 2. Send new command for the NEXT transaction (non-blocking)
+    uint8_t tx = std::clamp<int>(tx_value_ * 255, 0, 255);
+    Serial1.write(tx);
   }
 
   float read() const override { return rx_value_; }
