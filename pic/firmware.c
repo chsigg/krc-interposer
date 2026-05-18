@@ -28,7 +28,7 @@
 #pragma config MCLRE = EXTMCLR  // MCLR pin is master clear
 #pragma config CP = OFF         // Disable code memory protection
 #pragma config LVP = ON         // Enable low voltage programming
-#pragma config BOREN = OFF      // Disable Brown-out Reset
+#pragma config BOREN = ON       // Enable Brown-out Reset for hardware safety
 
 #define _XTAL_FREQ 500000       // 500 kHz CPU Clock
 
@@ -174,23 +174,33 @@ int main(void) {
 
     while (1) {
         CLRWDT();
+
+        // Check for received packets from master
         bool msg_arrived = check_uart_polled();
         if (msg_arrived) {
             send_telemetry();
         }
+
         if (!PIR2bits.TMR2IF) {
             continue;  // Wait for 20ms interval match flag
         }
         PIR2bits.TMR2IF = 0;
+
         current_adc = read_adc();
+
+        // Switch to passthrough if knob is in Off position.
         if (current_adc < OFF_THRESHOLD) {
             rx_byte = PASSTHROUGH_BYTE;
         }
+
+        // Wake up master if ADC reading is high (boil trigger engaged).
         if (!msg_arrived && current_adc > WAKEUP_THRESHOLD) {
             send_telemetry();
         }
+
         process_safety_ramps();
         update_actuator();
+
         if (sw_watchdog < SOFTWARE_WDT_MAX_TICKS) {
             sw_watchdog++;
         }
