@@ -149,10 +149,11 @@ void init_hardware(void) {
                             .CKPS = 0b000,
                             .OUTPS = 0b1001}; // Prescaler 1:1, Postscaler 1:10
 
-  // 6. Ensure all interrupts are disabled at controller and peripheral levels
-  INTCONbits = (INTCONbits_t){.GIE = 0, .PEIE = 0};
-  PIE4bits = (PIE4bits_t){.RC1IE = 0};
-  PIE2bits = (PIE2bits_t){.TMR2IE = 0};
+  // 6. Disable global interrupts but enable specific peripheral interrupts to
+  // serve as wake-up triggers from IDLE mode.
+  INTCONbits = (INTCONbits_t){.GIE = 0, .PEIE = 1};
+  PIE4bits = (PIE4bits_t){.RC1IE = 1};
+  PIE2bits = (PIE2bits_t){.TMR2IE = 1};
 
   // 7. Peripheral Module Disable (PMD) to shut down all unused modules
   PMD0bits = (PMD0bits_t){.TMR0MD = 1,
@@ -165,6 +166,9 @@ void init_hardware(void) {
   PMD2bits = (PMD2bits_t){
       .CLC1MD = 1, .CLC2MD = 1, .CLC3MD = 1, .PWM2MD = 1, .NCO1MD = 1};
   PMD3bits = (PMD3bits_t){.CM1MD = 1, .CM2MD = 1, .FVRMD = 1};
+
+  // 8. Configure CPUDOZE for IDLE mode
+  CPUDOZEbits = (CPUDOZEbits_t){.IDLEN = 1};
 }
 
 uint8_t read_adc(void) {
@@ -189,6 +193,9 @@ int main(void) {
   current_adc = read_adc();
 
   while (1) {
+    SLEEP(); // Enter IDLE mode.
+    NOP();   // Standard safety padding after waking up
+
     CLRWDT();
 
     // Check for received packets from master
