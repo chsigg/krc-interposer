@@ -9,6 +9,7 @@
  *   -O2 firmware.c -o firmware.hex
  */
 
+#include <cstdint>
 #include <stdbool.h>
 #include <stdint.h>
 #include <xc.h>
@@ -46,7 +47,6 @@
 static uint8_t rx_byte =
     PASSTHROUGH_BYTE;           // Latest valid command byte from Master
 static uint8_t current_adc = 0; // Most recent processed analog sample
-static uint8_t output_val = 0;  // Dynamic smoothed actuator level
 static uint8_t sw_watchdog = 0; // Interval tracker since last Master packet
 
 uint8_t calculate_parity(uint8_t val) {
@@ -82,47 +82,36 @@ void send_telemetry(void) {
   TX1REG = current_adc;
 }
 
-void update_actuator(void) {
+void update_actuator(uint8_t output_val) {
+  // TODO: adjust output_val based on ref range.
   DAC1DATL = output_val;
   DAC1CONbits.OE1 = output_val >= OFF_THRESHOLD;
   DAC1CONbits.REFRNG = output_val >= 128;
 }
 
-void process_safety_ramps(void) {
+uint8_t get_target_val(void) {
   if (rx_byte == PASSTHROUGH_BYTE) {
-    output_val = current_adc;
-    return;
+    return current_adc;
   }
   if (sw_watchdog >= SOFTWARE_WDT_MAX_TICKS) {
-    output_val = OFF_THRESHOLD;
-    return;
+    return OFF_THRESHOLD;
   }
-  uint8_t target_val = MAX(rx_byte, MIN_OVERRIDE_VAL);
-  if (target_val > output_val) {
-    output_val += MIN(target_val - output_val, 3);
-    return;
-  }
-  if (target_val < output_val) {
-    output_val -= MIN(output_val - target_val, 3);
-    return;
-  }
+  return MAX(rx_byte, MIN_OVERRIDE_VAL);
 }
 
 void init_hardware(void) {
-  // 1. System Clock (500 kHz Native MFINTOSC)
-  OSCCON1bits =
-      (OSCCON1bits_t){.NOSC = 0b101, .NDIV = 0b0000}; // MFINTOSC, Div 1:1
+  // 1. System Clock (500 kHz via 1 MHz HFINTOSC divided by 2)
+  OSCFRQ = 0x00;
+  OSCCON1bits = (OSCCON1bits_t){.NOSC = 0b110, .NDIV = 0b0001};
   volatile uint16_t osc_timeout = 1000;
   while (OSCCON3bits.ORDY == 0 && --osc_timeout > 0)
     ;
 
   // 2. Pin Configuration
-  ANSELAbits = (ANSELAbits_t){
-      .ANSELA0 = 0, .ANSELA1 = 0, .ANSELA2 = 1, .ANSELA4 = 1, .ANSELA5 = 0};
-  TRISAbits = (TRISAbits_t){
-      .TRISA0 = 1, .TRISA1 = 0, .TRISA2 = 1, .TRISA4 = 1, .TRISA5 = 1};
-  LATAbits = (LATAbits_t){.LATA1 = 0, .LATA5 = 0};
-  WPUAbits = (WPUAbits_t){.WPUA1 = 0};
+  ANSELAbits = (ANSELAbits_t){.ANSELA2 = 1, .ANSELA4 = 1};
+  LATAbits = (LATAbits_t){0};
+  WPUAbits = (WPUAbits_t){0};
+  TRISAbits = (TRISAbits_t){.TRISA0 = 1, .TRISA2 = 1, .TRISA4 = 1, .TRISA5 = 1};
   ODCONAbits = (ODCONAbits_t){.ODCA1 = 1};
 
   RX1PPS = 0x00;
@@ -191,6 +180,7 @@ uint8_t read_adc(void) {
 int main(void) {
   init_hardware();
   current_adc = read_adc();
+  uint8_t output_val = 0;
 
   while (1) {
     SLEEP(); // Enter IDLE mode.
@@ -221,8 +211,16 @@ int main(void) {
       send_telemetry();
     }
 
-    process_safety_ramps();
-    update_actuator();
+    uint8_t target_val = get_target_val();
+
+    if (target_val > output_val) {
+      output_val += MIN(target_val - output_val, 3);
+    }
+    if (target_val < output_val) {
+      output_val -= MIN(output_val - target_val, 3);
+    }
+
+    update_actuator(output_val);
 
     if (sw_watchdog < SOFTWARE_WDT_MAX_TICKS) {
       sw_watchdog++;
