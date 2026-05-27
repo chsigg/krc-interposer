@@ -9,19 +9,18 @@
  *   -O2 firmware.c -o firmware.hex
  */
 
-#include <cstdint>
 #include <stdbool.h>
 #include <stdint.h>
 #include <xc.h>
 
 // Clock Source: Internal Oscillator
 #pragma config FEXTOSC = OFF          // Disable external oscillator
-#pragma config RSTOSC = HFINTOSC_1MHz // Use internal 1MHz oscillator
+#pragma config RSTOSC = LFINTOSC      // Use internal 31kHz oscillator
 #pragma config CLKOUTEN = OFF         // Disable clock out
 
 // Watchdog Timer: Enabled
 #pragma config WDTE = ON         // Enable watchdog timer
-#pragma config WDTCPS = WDTCPS_5 // Set WDT divider ratio to 1:1024
+#pragma config WDTCPS = WDTCPS_7 // Set WDT divider ratio to 1:4096 (128ms nominal)
 #pragma config WDTCWS = WDTCWS_7 // Set WDT window to always open
 
 // Power-up and Code Protect
@@ -31,7 +30,7 @@
 #pragma config LVP = ON         // Enable low voltage programming
 #pragma config BOREN = ON       // Enable Brown-out Reset for hardware safety
 
-#define _XTAL_FREQ 500000 // 500 kHz CPU Clock
+#define _XTAL_FREQ 31000 // 31 kHz CPU Clock
 
 // Constants
 #define SOFTWARE_WDT_MAX_TICKS 200 // 2 seconds / 10ms loops
@@ -100,64 +99,44 @@ uint8_t get_target_val(void) {
 }
 
 void init_hardware(void) {
-  // 1. System Clock (500 kHz via 1 MHz HFINTOSC divided by 2)
-  OSCFRQ = 0x00;
-  OSCCON1bits = (OSCCON1bits_t){.NOSC = 0b110, .NDIV = 0b0001};
-  volatile uint16_t osc_timeout = 1000;
-  while (OSCCON3bits.ORDY == 0 && --osc_timeout > 0)
-    ;
-
-  // 2. Pin Configuration
+  // 1. Pin Configuration
   ANSELAbits = (ANSELAbits_t){.ANSELA2 = 1, .ANSELA4 = 1};
-  LATAbits = (LATAbits_t){0};
-  WPUAbits = (WPUAbits_t){0};
+  LATA = 0x00;
+  WPUA = 0x00;
   TRISAbits = (TRISAbits_t){.TRISA0 = 1, .TRISA2 = 1, .TRISA4 = 1, .TRISA5 = 1};
-  ODCONAbits = (ODCONAbits_t){.ODCA1 = 1};
+  ODCONAbits = (ODCONAbits_t){.ODCA1 = 1};  // Open-drain mode.
 
   RX1PPS = 0x00;
   RA1PPS = 0x13;
   RA0PPS = 0x00;
 
-  // 3. Peripheral Engine Enables
+  // 2. Peripheral Engine Enables
   ADCON0bits = (ADCON0bits_t){.CS = 1, .FM = 0b01}; // Sets ON=0
   ADPCHbits = (ADPCHbits_t){.PCH2 = 1};             // Channel Select RA4
   DAC1CONbits = (DAC1CONbits_t){.EN = 1, .PSS = 0b00};
 
-  // 4. 9600 Baud Generator Configuration
+  // 3. 7750 Baud Generator Configuration (Max speed at 31 kHz LFINTOSC)
   BAUD1CONbits = (BAUD1CONbits_t){.BRG16 = 1};
   TX1STAbits = (TX1STAbits_t){.TXEN = 1, .BRGH = 1, .TX9 = 1};
   RC1STAbits = (RC1STAbits_t){.SPEN = 1, .CREN = 1, .RX9 = 1};
-  SP1BRGL = 12;
+  SP1BRGL = 0;
   SP1BRGH = 0;
 
-  // 5. Timer2 Period Configuration (Deterministic Hardware Counter for 20ms (50
-  // Hz) tick at 500 kHz clock)
-  T2CLKCON = 0x01; // Source: Fosc/4 (125 kHz input)
-  T2PR = 249;      // Period match = 250 counts
-  T2CONbits = (T2CONbits_t){.ON = 1,
-                            .CKPS = 0b000,
-                            .OUTPS = 0b1001}; // Prescaler 1:1, Postscaler 1:10
+  // 4. Disable all interrupts (polling only, no sleep)
+  INTCON = 0x00;
+  PIE4 = 0x00;
 
-  // 6. Disable global interrupts but enable specific peripheral interrupts to
-  // serve as wake-up triggers from IDLE mode.
-  INTCONbits = (INTCONbits_t){.GIE = 0, .PEIE = 1};
-  PIE4bits = (PIE4bits_t){.RC1IE = 1};
-  PIE2bits = (PIE2bits_t){.TMR2IE = 1};
-
-  // 7. Peripheral Module Disable (PMD) to shut down all unused modules
+  // 5. Peripheral Module Disable (PMD) to shut down all unused modules
   PMD0bits = (PMD0bits_t){.TMR0MD = 1,
                           .CLKRMD = 1,
                           .IOCMD = 1,
                           .ACTMD = 1,
                           .SCANMD = 1,
                           .CRCMD = 1};
-  PMD1bits = (PMD1bits_t){.TMR1MD = 1};
+  PMD1bits = (PMD1bits_t){.TMR1MD = 1, .TMR2MD = 1};
   PMD2bits = (PMD2bits_t){
       .CLC1MD = 1, .CLC2MD = 1, .CLC3MD = 1, .PWM2MD = 1, .NCO1MD = 1};
   PMD3bits = (PMD3bits_t){.CM1MD = 1, .CM2MD = 1, .FVRMD = 1};
-
-  // 8. Configure CPUDOZE for IDLE mode
-  CPUDOZEbits = (CPUDOZEbits_t){.IDLEN = 1};
 }
 
 uint8_t read_adc(void) {
@@ -178,39 +157,26 @@ uint8_t read_adc(void) {
 }
 
 int main(void) {
+  CLRWDT(); // Reset WDT after startup initialization
   init_hardware();
   current_adc = read_adc();
   uint8_t output_val = 0;
 
   while (1) {
-    SLEEP(); // Enter IDLE mode.
-    NOP();   // Standard safety padding after waking up
-
     CLRWDT();
 
-    // Check for received packets from master
-    bool msg_arrived = check_uart_polled();
-    if (msg_arrived) {
-      send_telemetry();
-    }
-
-    if (!PIR2bits.TMR2IF) {
-      continue; // Wait for 20ms interval match flag
-    }
-    PIR2bits.TMR2IF = 0;
-
+    // 1. Read ADC first to get fresh dial position
     current_adc = read_adc();
+
+    // 2. Check UART for master commands
+    bool msg_arrived = check_uart_polled();
 
     // Switch to passthrough if knob is in Off position.
     if (current_adc < OFF_THRESHOLD) {
       rx_byte = PASSTHROUGH_BYTE;
     }
 
-    // Wake up master if ADC reading is high (boil trigger engaged).
-    if (!msg_arrived && current_adc > WAKEUP_THRESHOLD) {
-      send_telemetry();
-    }
-
+    // 3. Process dial / override logic
     uint8_t target_val = get_target_val();
 
     if (target_val > output_val) {
@@ -220,7 +186,13 @@ int main(void) {
       output_val -= MIN(output_val - target_val, 3);
     }
 
+    // 4. Update DAC output
     update_actuator(output_val);
+
+    // 5. Send telemetry if requested or boil trigger engaged
+    if (msg_arrived || current_adc > WAKEUP_THRESHOLD) {
+      send_telemetry();
+    }
 
     if (sw_watchdog < SOFTWARE_WDT_MAX_TICKS) {
       sw_watchdog++;

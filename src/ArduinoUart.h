@@ -11,7 +11,7 @@ public:
 
   void begin() {
     Serial1.setPins(rx_pin_, tx_pin_);
-    Serial1.begin(9600, SERIAL_8E1); // 8 data bits, Even parity, 1 stop bit
+    Serial1.begin(7750, SERIAL_8E1); // 8 data bits, Even parity, 1 stop bit
 
     // Enable the internal 3.3V pull-up on RX pin to match the PIC's open-drain 5V TX pin.
     pinMode(rx_pin_, INPUT_PULLUP);
