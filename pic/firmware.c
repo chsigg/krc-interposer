@@ -105,6 +105,7 @@ void init_hardware(void) {
   WPUA = 0x00;
   TRISAbits = (TRISAbits_t){.TRISA0 = 1, .TRISA2 = 1, .TRISA4 = 1, .TRISA5 = 1};
   ODCONAbits = (ODCONAbits_t){.ODCA1 = 1};  // Open-drain mode.
+  INLVLAbits = (INLVLAbits_t){.INLVLA3 = 1}; // MCLR (RA3) ST, RX (RA0) and others TTL
 
   RX1PPS = 0x00;
   RA1PPS = 0x13;
@@ -157,16 +158,21 @@ uint8_t read_adc(void) {
 }
 
 int main(void) {
-  CLRWDT(); // Reset WDT after startup initialization
+  CLRWDT();
   init_hardware();
-  current_adc = read_adc();
+
   uint8_t output_val = 0;
+  uint8_t adc_counter = 0;
 
   while (1) {
     CLRWDT();
 
-    // 1. Read ADC first to get fresh dial position
-    current_adc = read_adc();
+    // 1. Read ADC every 10th iteration.
+    if (adc_counter == 0) {
+      adc_counter = 10;
+      current_adc = read_adc();
+    }
+    --adc_counter;
 
     // 2. Check UART for master commands
     bool msg_arrived = check_uart_polled();
